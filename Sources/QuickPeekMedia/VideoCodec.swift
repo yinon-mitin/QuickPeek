@@ -90,7 +90,7 @@ enum VideoFormat {
         var bitDepth: UInt8 = 8
         var chroma: UInt8 = 1
 
-        if let features = codecPrivate.map(Data.init) {
+        if let features = codecPrivate.map({ Data($0) }) {
             var index = 0
             while index + 2 <= features.count {
                 let id = features[index]

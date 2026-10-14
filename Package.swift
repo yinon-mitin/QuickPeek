@@ -7,6 +7,7 @@ let package = Package(
     products: [
         .library(name: "QuickPeekCore", targets: ["QuickPeekCore"]),
         .library(name: "QuickPeekMedia", targets: ["QuickPeekMedia"]),
+        .library(name: "QuickPeekFormats", targets: ["QuickPeekFormats"]),
     ],
     targets: [
         .target(
@@ -16,6 +17,23 @@ let package = Package(
         .target(
             name: "QuickPeekMedia",
             path: "Sources/QuickPeekMedia"
+        ),
+        // macOS ships libarchive and its link stub in the SDK, but no header; the module map in
+        // Sources/CArchive declares the handful of stable libarchive 3 functions QuickPeek calls.
+        .systemLibrary(
+            name: "CArchive",
+            path: "Sources/CArchive"
+        ),
+        .target(
+            name: "QuickPeekFormats",
+            dependencies: ["CArchive"],
+            path: "Sources/QuickPeekFormats"
+        ),
+        .testTarget(
+            name: "QuickPeekFormatsTests",
+            dependencies: ["QuickPeekFormats"],
+            path: "Tests/QuickPeekFormatsTests",
+            resources: [.copy("Fixtures")]
         ),
         .testTarget(
             name: "QuickPeekCoreTests",

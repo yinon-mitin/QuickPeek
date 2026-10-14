@@ -176,7 +176,7 @@ enum AVMediaInfo: InfoReader {
     static func read(_ url: URL, format: InfoFormat) throws -> (sections: [InfoSection], summary: String?) {
         let type = UTType(filenameExtension: url.pathExtension)
         let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Double.init)
-        let result = try runBlocking {
+        let result = try runBlocking(timeout: format.quick ? 1 : 5) {
             try await describe(url: url, type: type, fileSize: fileSize, format: format)
         }
         return (result.sections, result.summary)

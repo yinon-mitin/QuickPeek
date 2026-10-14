@@ -82,7 +82,7 @@ enum ArchiveInfo: InfoReader {
     }
 
     static func read(_ url: URL, format: InfoFormat) throws -> (sections: [InfoSection], summary: String?) {
-        let listing = try ArchiveListing.read(url: url, maxEntries: 200_000, timeLimit: 2)
+        let listing = try ArchiveListing.read(url: url, maxEntries: 200_000, timeLimit: format.timeLimit)
         let files = listing.entries.filter { $0.kind != .directory }.count
         let folders = Set(listing.entries.flatMap { entry -> [String] in
             let parts = entry.path.split(separator: "/").map(String.init)

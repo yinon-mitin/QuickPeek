@@ -19,17 +19,18 @@ no bundled ffmpeg or other large codec libraries; every parser covered by `swift
 - **0.4** — no more WebKit: code in TextKit 2 with highlight.js in JavaScriptCore,
   Markdown through Foundation's parser with native tables, CSV in an NSTableView.
 
+- **0.5** — file details (MediaInfo replacement): video/audio, photos/RAW with EXIF and
+  GPS, PDF/Office/fonts/text, archives, torrents and apps, in Finder's context menu and an
+  ⓘ panel in previews.
+
 ## Next
 
-1. **MediaInfo replacement** — technical details of any file (container, codecs, bitrate,
-   resolution, HDR, EXIF/GPS, PDF and Office properties, archive ratios, app signatures)
-   in a Finder context menu and an ⓘ panel in previews.
-2. **App bundles** — `.app`, `.ipa`, `.xcarchive`, `.apk`: icon, identifiers, version,
+1. **App bundles** — `.app`, `.ipa`, `.xcarchive`, `.apk`: icon, identifiers, version,
    entitlements and provisioning profile; icons as Finder thumbnails.
-3. **More containers** — AVI, FLV, MPEG-TS and Ogg demuxers on the same pipeline
+2. **More containers** — AVI, FLV, MPEG-TS and Ogg demuxers on the same pipeline
    (codecs macOS can decode only).
-4. **Jupyter notebooks.**
-5. **Archive thumbnails and peeking inside** — preview a file inside an archive without
+3. **Jupyter notebooks.**
+4. **Archive thumbnails and peeking inside** — preview a file inside an archive without
    extracting it to disk.
 
 ## Later

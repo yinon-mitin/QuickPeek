@@ -31,12 +31,14 @@ targets:
       # Preview UI is shared so the app can show it in a window (--play, --snapshot) for debugging.
       - PreviewExtension/PlayerView.swift
       - PreviewExtension/StructuredPreviews.swift
+      - PreviewExtension/InfoPanel.swift
       - path: Vendor
         type: folder
         buildPhase: resources
     dependencies:
       - target: QuickPeekPreview
       - target: QuickPeekThumbnail
+      - target: QuickPeekFinderSync
       - package: QuickPeek
         product: QuickPeekCore
       - package: QuickPeek
@@ -102,6 +104,8 @@ targets:
         product: QuickPeekFormats
       - package: QuickPeek
         product: QuickPeekText
+      - package: QuickPeek
+        product: QuickPeekInfo
       - sdk: Quartz.framework
     settings:
       base:
@@ -251,3 +255,33 @@ targets:
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.files.user-selected.read-only: true
+
+  QuickPeekFinderSync:
+    type: app-extension
+    platform: macOS
+    sources:
+      - FinderSyncExtension
+    dependencies:
+      - package: QuickPeek
+        product: QuickPeekInfo
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.yinon-mitin.QuickPeek.FinderSync
+        GENERATE_INFOPLIST_FILE: NO
+    info:
+      path: FinderSyncExtension/Info.plist
+      properties:
+        CFBundleDisplayName: QuickPeek Info
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.FinderSync
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).FinderSync
+    entitlements:
+      path: FinderSyncExtension/QuickPeekFinderSync.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        # Finder Sync extensions get no file access of their own; reading the selected file's
+        # details needs read-only access to the file system. Nothing is ever written.
+        com.apple.security.temporary-exception.files.absolute-path.read-only: ["/"]

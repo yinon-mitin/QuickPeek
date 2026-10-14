@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import QuickPeekCore
 import QuickPeekInfo
 import QuickPeekMedia
@@ -11,6 +12,7 @@ import QuickPeekText
 ///     QuickPeek --thumbnail <video> <out.png> [size]  decode the thumbnail frame of a video
 ///     QuickPeek --probe <video>                     list tracks and count frames, like ffprobe
 ///     QuickPeek --info <file> [...]                 technical details of any file, like mediainfo
+///     QuickPeek --snapshot-info <file> <out.png>    the ⓘ details panel as a PNG
 ///     QuickPeek --play <video>                      play in a window with the Quick Look player
 ///     QuickPeek --play-snapshot <video> <out.png>   play briefly and save the player as a PNG
 @main
@@ -19,6 +21,12 @@ enum Main {
         let arguments = Array(CommandLine.arguments.dropFirst())
 
         switch arguments.first {
+        case "--snapshot-info" where arguments.count >= 3:
+            let input = URL(fileURLWithPath: arguments[1])
+            ViewSnapshot.run(output: URL(fileURLWithPath: arguments[2]), dark: arguments.contains("--dark"),
+                             size: NSSize(width: 440, height: 520)) {
+                NSHostingView(rootView: InfoPanel(info: FileInfoReader.read(input)))
+            }
         case "--snapshot" where arguments.count >= 3:
             let input = URL(fileURLWithPath: arguments[1])
             let services = TextServices(vendorDirectory: Bundle.main.resourceURL!.appendingPathComponent("Vendor", isDirectory: true))
@@ -37,8 +45,13 @@ enum Main {
         case "--probe" where arguments.count == 2:
             probe(URL(fileURLWithPath: arguments[1]))
         case "--info" where arguments.count >= 2:
-            for path in arguments.dropFirst() {
-                printInfo(FileInfoReader.read(URL(fileURLWithPath: path)))
+            // --quick reads within the time budget of Finder's context menu.
+            let quick = arguments.contains("--quick")
+            for path in arguments.dropFirst() where path != "--quick" {
+                let started = Date()
+                let info = FileInfoReader.read(URL(fileURLWithPath: path), quick: quick)
+                printInfo(info)
+                if quick { print(String(format: "(%.0f ms)\n", Date().timeIntervalSince(started) * 1000)) }
             }
         case "--play" where arguments.count == 2:
             PlayerWindow.run(URL(fileURLWithPath: arguments[1]), snapshotTo: nil)
@@ -88,15 +101,7 @@ enum Main {
     }
 
     private static func printInfo(_ info: FileInfo) {
-        print(info.summary)
-        for section in info.sections {
-            print("\n\(section.title)")
-            let width = section.items.map(\.label.count).max() ?? 0
-            for item in section.items {
-                print("  " + item.label.padding(toLength: width, withPad: " ", startingAt: 0) + "  " + item.value)
-            }
-        }
-        print("")
+        print(info.report + "\n")
     }
 
     static func fail(_ message: String) -> Never {

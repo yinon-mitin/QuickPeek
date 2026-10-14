@@ -43,8 +43,11 @@ public enum FileInfoReader {
         ArchiveInfo.self, PDFInfo.self, FontInfo.self, TextInfo.self,
     ]
 
-    public static func read(_ url: URL, locale: Locale = .autoupdatingCurrent) -> FileInfo {
-        let format = InfoFormat(locale: locale)
+    /// - Parameter quick: keep to a fraction of a second (Finder's context menu waits for the
+    ///   answer): archives are listed only briefly, media loading times out sooner, bundle
+    ///   sizes are skipped.
+    public static func read(_ url: URL, locale: Locale = .autoupdatingCurrent, quick: Bool = false) -> FileInfo {
+        let format = InfoFormat(locale: locale, quick: quick)
         let values = try? url.resourceValues(forKeys: [
             .fileSizeKey, .totalFileAllocatedSizeKey, .creationDateKey, .contentModificationDateKey,
             .localizedTypeDescriptionKey, .contentTypeKey, .isDirectoryKey,
@@ -77,6 +80,10 @@ public enum FileInfoReader {
 /// Locale-aware formatting shared by all readers.
 struct InfoFormat: Sendable {
     let locale: Locale
+    var quick = false
+
+    /// Time budget for slow readers.
+    var timeLimit: TimeInterval { quick ? 0.4 : 3 }
 
     func bytes(_ count: Int64) -> String {
         count.formatted(.byteCount(style: .file).locale(locale))
@@ -118,5 +125,21 @@ struct InfoFormat: Sendable {
 
     func yesNo(_ value: Bool) -> String {
         value ? "Yes" : "No"
+    }
+}
+
+extension FileInfo {
+    /// The details as plain text, for "Copy All" and the command line.
+    public var report: String {
+        var lines = [summary]
+        for section in sections {
+            lines.append("")
+            lines.append(section.title)
+            let width = section.items.map(\.label.count).max() ?? 0
+            for item in section.items {
+                lines.append("  " + item.label.padding(toLength: width, withPad: " ", startingAt: 0) + "  " + item.value)
+            }
+        }
+        return lines.joined(separator: "\n")
     }
 }

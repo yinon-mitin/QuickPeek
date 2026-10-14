@@ -13,7 +13,7 @@ rm -rf "$dst"
 ditto "$src" "$dst"
 
 /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f -R "$dst"
-for extension in Preview Thumbnail; do
+for extension in Preview Thumbnail FinderSync; do
     pluginkit -a "$dst/Contents/PlugIns/QuickPeek$extension.appex"
     pluginkit -e use -i "io.github.yinon-mitin.QuickPeek.$extension"
 done
@@ -24,3 +24,4 @@ pkill -f com.apple.quicklook.ThumbnailsAgent 2>/dev/null || true
 echo "Installed $dst"
 pluginkit -m -v -i io.github.yinon-mitin.QuickPeek.Preview
 pluginkit -m -v -i io.github.yinon-mitin.QuickPeek.Thumbnail
+pluginkit -m -v -i io.github.yinon-mitin.QuickPeek.FinderSync

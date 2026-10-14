@@ -37,6 +37,7 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
     }
 
     private func preparePreview(_ url: URL) throws {
+        defer { InfoButton.attach(to: view, fileURL: url) }
         if Self.matroskaExtensions.contains(url.pathExtension.lowercased()) {
             try showPlayer(for: url)
         } else if StructuredPreview.handles(url) {

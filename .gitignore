@@ -9,3 +9,5 @@ PreviewExtension/Info.plist
 PreviewExtension/*.entitlements
 ThumbnailExtension/Info.plist
 ThumbnailExtension/*.entitlements
+FinderSyncExtension/Info.plist
+FinderSyncExtension/*.entitlements

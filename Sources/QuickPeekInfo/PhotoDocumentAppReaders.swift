@@ -293,7 +293,7 @@ enum AppInfo: InfoReader {
             }
         }
         if let copyright = plist["NSHumanReadableCopyright"] as? String { items.append(InfoItem("Copyright", copyright)) }
-        if let size = directorySize(url) { items.append(InfoItem("Size on disk", format.bytes(size))) }
+        if !format.quick, let size = directorySize(url) { items.append(InfoItem("Size on disk", format.bytes(size))) }
 
         var sections = [InfoSection("Application", symbol: "app", items: items)]
         if let signature = signatureItems(url) { sections.append(InfoSection("Signature", symbol: "checkmark.seal", items: signature)) }

@@ -26,6 +26,22 @@ plugins weigh.
 macOS already previews Word/Excel/PowerPoint, RAW photos (ARW, CR3, NEF…),
 WebP, HEIC, ICO and PDF by itself, so QuickPeek leaves those to the system.
 
+## File details (a MediaInfo replacement)
+
+Right-click any file in Finder and choose **QuickPeek Info** for its technical details;
+choosing a line copies the value, **Copy All Details** copies the whole report. QuickPeek's
+own previews also have an ⓘ button with the same details.
+
+| Files | Details |
+|-------|---------|
+| Video and audio (MP4, MOV, MKV, WebM, M4A, MP3, WAV…) | Container, duration, overall bitrate, tags; per track: codec, H.264/HEVC profile and level, VP9 profile, resolution, frame rate, bit depth, HDR10/HLG/Dolby Vision, colour primaries/transfer/matrix, sample rate, channels, language |
+| Photos and RAW | Format, resolution, megapixels, colour profile, bit depth; camera, lens, exposure, aperture, ISO, focal length (with full-frame equivalent), flash, capture time; GPS position |
+| Documents | PDF pages, paper size, properties and permissions; Word/Excel/PowerPoint authors, dates, pages, words, sheets, slides; fonts; text encoding, line endings and line counts |
+| Archives, torrents, apps | Archive format, file count, unpacked size and ratio; torrent hashes and trackers; app bundle ID, version, architectures and code signature |
+
+The same report is available on the command line:
+`/Applications/QuickPeek.app/Contents/MacOS/QuickPeek --info file…`
+
 Previews follow the system light/dark appearance. Files larger than 2 MB are
 shown up to the limit, tables up to 5,000 rows. Codecs macOS cannot decode
 (for example Vorbis, Theora, WMV) are reported instead of played — QuickPeek
@@ -44,7 +60,8 @@ script/install.sh    # copies it to /Applications and enables the extension
 If another Quick Look extension handles the same files (for example Syntax
 Highlight, PreviewYaml, QLC, QLCodec-mkv or Webm Quicklook), macOS picks one of
 them. Turn the others off in **System Settings → General → Login Items &
-Extensions → Quick Look**.
+Extensions → Quick Look**. The Finder menu is listed there under **Finder**
+(QuickPeek Info).
 
 ## Privacy and security
 
@@ -62,6 +79,8 @@ Previews render untrusted files, so the extensions are built defensively:
 ```
 Sources/QuickPeekCore    file classification, text decoding, CSV parsing
 Sources/QuickPeekText    highlight.js in JavaScriptCore, Markdown renderer, native document views
+Sources/QuickPeekInfo    file details engine (media, photos, documents, archives, apps)
+FinderSyncExtension      "QuickPeek Info" in Finder's context menu
 Sources/QuickPeekMedia   Matroska/WebM demuxer, CoreMedia bridge, frame extraction, player
 Sources/QuickPeekFormats torrents (bencode), archive listings (system libarchive), file trees
 Sources/CArchive         declarations for the system libarchive (the SDK has no header)
@@ -83,6 +102,8 @@ $QP --play movie.mkv                        # the Quick Look player in a window
 $QP --play-snapshot movie.mkv out.png       # play briefly, save the player as a PNG
 $QP --thumbnail movie.mkv out.png [size]    # the Finder thumbnail frame
 $QP --probe movie.mkv                       # tracks and frame counts, like ffprobe
+$QP --info [--quick] file…                  # file details, like mediainfo
+$QP --snapshot-info file out.png            # the ⓘ details panel as a PNG
 ```
 
 The demuxer is checked against the official Matroska conformance files

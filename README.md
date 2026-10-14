@@ -20,6 +20,7 @@ and its three extensions — instead of the 50–150 MB that bundled-codec plugi
 | Tables | CSV, TSV, semicolon- and pipe-separated | Native table with row numbers and a sticky header; delimiter is detected automatically |
 | Text | `.log` and other text macOS does not preview | Monospaced, wrapped |
 | Archives | ZIP, TAR (gzip, bzip2, xz), RAR, RAR5, 7-Zip, ISO, CPIO, XAR, CAB, LHA, single `.gz`/`.bz2`/`.xz` | File tree with sizes and dates, read with the libarchive built into macOS — nothing is extracted. Encrypted archives are labelled |
+| App packages | `.ipa`, `.apk`, `.xcarchive` | The app's icon (also as the Finder thumbnail), name, version, bundle ID or package, minimum OS, devices, permissions; provisioning profile type, team, expiry and entitlements |
 | Torrents | `.torrent` (BitTorrent v1, v2, hybrid) | Files, size, info hash, pieces, trackers; one click copies the magnet link (private trackers' passkeys are left out of it) |
 | Video | `.mkv`, `.webm`, `.mka` | Native player and Finder thumbnails. Video: H.264, HEVC, VP9, AV1 (Macs with an AV1 decoder, M3 and later). Audio: AAC, Opus, FLAC, AC-3, E-AC-3, MP3 |
 

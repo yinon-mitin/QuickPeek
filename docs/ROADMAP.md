@@ -23,14 +23,16 @@ no bundled ffmpeg or other large codec libraries; every parser covered by `swift
   GPS, PDF/Office/fonts/text, archives, torrents and apps, in Finder's context menu and an
   ⓘ panel in previews.
 
+- **0.6** — app packages: `.ipa`, `.apk` (binary manifest and resource table, checked
+  against androguard), `.xcarchive`; icons as Finder thumbnails; shared code in one
+  framework (app under 4 MB).
+
 ## Next
 
-1. **App bundles** — `.app`, `.ipa`, `.xcarchive`, `.apk`: icon, identifiers, version,
-   entitlements and provisioning profile; icons as Finder thumbnails.
-2. **More containers** — AVI, FLV, MPEG-TS and Ogg demuxers on the same pipeline
+1. **More containers** — AVI, FLV, MPEG-TS and Ogg demuxers on the same pipeline
    (codecs macOS can decode only).
-3. **Jupyter notebooks.**
-4. **Archive thumbnails and peeking inside** — preview a file inside an archive without
+2. **Jupyter notebooks.**
+3. **Archive thumbnails and peeking inside** — preview a file inside an archive without
    extracting it to disk.
 
 ## Later

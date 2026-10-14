@@ -44,8 +44,10 @@ enum PackageInfo: InfoReader {
         }
         if let version = package.version { items.append(InfoItem("Version", version)) }
         if let build = package.build { items.append(InfoItem(package.platform == .android ? "Version code" : "Build", build)) }
-        if let minimum = package.minimumOS { items.append(InfoItem("Minimum OS", minimum)) }
-        if let target = package.targetOS { items.append(InfoItem(package.platform == .android ? "Target SDK" : "SDK", target)) }
+        // Android versions already read "Android 8.0 (API 26)"; Apple ones are bare numbers.
+        let platformPrefix = package.platform == .android ? "" : "\(package.platform.rawValue) "
+        if let minimum = package.minimumOS { items.append(InfoItem("Minimum OS", platformPrefix + minimum)) }
+        if let target = package.targetOS { items.append(InfoItem(package.platform == .android ? "Target SDK" : "SDK", platformPrefix + target)) }
         if !package.devices.isEmpty { items.append(InfoItem("Devices", package.devices.joined(separator: ", "))) }
         if let builtWith = package.builtWith { items.append(InfoItem("Built with", builtWith)) }
         if !package.nativeABIs.isEmpty { items.append(InfoItem("Native code", package.nativeABIs.joined(separator: ", "))) }

@@ -25,32 +25,42 @@ struct InfoPanel: View {
             .padding(16)
             Divider()
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    ForEach(Array(info.sections.enumerated()), id: \.offset) { _, section in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Label(section.title, systemImage: section.symbol)
-                                .font(.subheadline.weight(.semibold))
-                            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 3) {
-                                ForEach(Array(section.items.enumerated()), id: \.offset) { _, item in
-                                    GridRow {
-                                        Text(item.label)
-                                            .foregroundStyle(.secondary)
-                                            .gridColumnAlignment(.trailing)
-                                        Text(item.value)
-                                            .textSelection(.enabled)
-                                            .fixedSize(horizontal: false, vertical: true)
-                                    }
-                                    .font(.callout)
-                                }
-                            }
-                        }
-                    }
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                InfoSectionsView(sections: info.sections)
+                    .padding(16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .frame(width: 440, height: 520)
+    }
+}
+
+/// Sections of label–value rows; values are selectable. Values flagged "— expired" are red.
+struct InfoSectionsView: View {
+    let sections: [InfoSection]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            ForEach(Array(sections.enumerated()), id: \.offset) { _, section in
+                VStack(alignment: .leading, spacing: 6) {
+                    Label(section.title, systemImage: section.symbol)
+                        .font(.subheadline.weight(.semibold))
+                    Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 3) {
+                        ForEach(Array(section.items.enumerated()), id: \.offset) { _, item in
+                            GridRow {
+                                Text(item.label)
+                                    .foregroundStyle(.secondary)
+                                    .gridColumnAlignment(.trailing)
+                                Text(item.value)
+                                    .foregroundStyle(item.value.hasSuffix("— expired") ? Color.red : Color.primary)
+                                    .textSelection(.enabled)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                            .font(.callout)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

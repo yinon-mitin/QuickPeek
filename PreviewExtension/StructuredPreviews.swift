@@ -1,5 +1,6 @@
 import AppKit
 import QuickPeekFormats
+import QuickPeekInfo
 import SwiftUI
 
 /// Native previews for files whose content is a list: archives and torrents.
@@ -11,12 +12,16 @@ enum StructuredPreview {
 
     static func handles(_ url: URL) -> Bool {
         let ext = url.pathExtension.lowercased()
-        return ext == "torrent" || archiveExtensions.contains(ext)
+        return ext == "torrent" || archiveExtensions.contains(ext) || AppPackagePreview.extensions.contains(ext)
     }
 
     /// Parses the file and returns the view to host, or throws if it cannot be read at all.
     @MainActor
     static func view(for url: URL) throws -> NSView {
+        if AppPackagePreview.extensions.contains(url.pathExtension.lowercased()) {
+            let package = try AppPackage.read(url: url)
+            return NSHostingView(rootView: AppPackagePreview(package: package, info: FileInfoReader.read(url)))
+        }
         if url.pathExtension.lowercased() == "torrent" {
             let torrent = try Torrent(data: Data(contentsOf: url, options: .mappedIfSafe))
             return NSHostingView(rootView: TorrentPreview(torrent: torrent, tree: FileTree.build(torrent)))

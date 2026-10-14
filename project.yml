@@ -39,6 +39,7 @@ targets:
       - PreviewExtension/PlayerView.swift
       - PreviewExtension/StructuredPreviews.swift
       - PreviewExtension/InfoPanel.swift
+      - PreviewExtension/AppPackagePreview.swift
       - path: Vendor
         type: folder
         buildPhase: resources
@@ -79,6 +80,11 @@ targets:
             UTTypeConformsTo: [public.source-code, public.plain-text]
             UTTypeTagSpecification:
               public.filename-extension: [graphql, gql]
+          - UTTypeIdentifier: com.apple.xcode.archive
+            UTTypeDescription: Xcode Archive
+            UTTypeConformsTo: [com.apple.package, public.directory]
+            UTTypeTagSpecification:
+              public.filename-extension: [xcarchive]
           - UTTypeIdentifier: com.hashicorp.terraform
             UTTypeDescription: Terraform Configuration
             UTTypeConformsTo: [public.source-code, public.plain-text]
@@ -199,6 +205,11 @@ targets:
               - com.microsoft.cab
               - public.archive.lha
               - org.bittorrent.torrent
+              # App packages
+              - com.apple.itunes.ipa
+              - public.archive.apk
+              - com.google.android.apk
+              - com.apple.xcode.archive
     entitlements:
       path: PreviewExtension/QuickPeekPreview.entitlements
       properties:
@@ -244,6 +255,11 @@ targets:
               - io.mpv.webm
               - org.videolan.mkv
               - org.videolan.webm
+              # App packages show their own icon
+              - com.apple.itunes.ipa
+              - public.archive.apk
+              - com.google.android.apk
+              - com.apple.xcode.archive
     entitlements:
       path: ThumbnailExtension/QuickPeekThumbnail.entitlements
       properties:

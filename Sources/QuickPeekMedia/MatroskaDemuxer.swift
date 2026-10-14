@@ -11,6 +11,19 @@ public struct MatroskaTrack: Sendable, Equatable {
         public var pixelHeight: Int
         public var displayWidth: Int?
         public var displayHeight: Int?
+        public var colour: Colour?
+        public var isInterlaced: Bool?
+    }
+
+    /// Colour signalling, coded as in ITU-T H.273 (1 = BT.709, 9 = BT.2020, 16 = PQ, 18 = HLG…).
+    public struct Colour: Sendable, Equatable {
+        public var matrixCoefficients: Int?
+        public var bitsPerChannel: Int?
+        public var range: Int?
+        public var transferCharacteristics: Int?
+        public var primaries: Int?
+        public var maxContentLightLevel: Int?
+        public var maxFrameAverageLightLevel: Int?
     }
 
     public struct Audio: Sendable, Equatable {
@@ -33,6 +46,17 @@ public struct MatroskaTrack: Sendable, Equatable {
     public var audio: Audio?
     /// Bytes removed from the start of every frame by "header stripping" compression.
     public var strippedHeader: Data?
+    public var uid: UInt64?
+    public var isDefault = true
+    public var isForced = false
+    /// Tags that target this track, such as mkvmerge's statistics (BPS, NUMBER_OF_FRAMES).
+    public var tags: [String: String] = [:]
+}
+
+public struct MatroskaAttachment: Sendable, Equatable {
+    public var name: String
+    public var mediaType: String
+    public var size: Int
 }
 
 public struct MatroskaCuePoint: Sendable, Equatable {
@@ -61,6 +85,14 @@ public final class MatroskaDemuxer {
     public private(set) var timestampScale: UInt64 = 1_000_000
     public private(set) var title: String?
     public private(set) var durationSeconds: Double?
+    public private(set) var muxingApp: String?
+    public private(set) var writingApp: String?
+    public private(set) var dateUTC: Date?
+    public private(set) var chapterCount = 0
+    public private(set) var attachments: [MatroskaAttachment] = []
+    /// Tags that target the whole file (TITLE, ENCODER, …).
+    public private(set) var tags: [String: String] = [:]
+    private var trackTags: [UInt64: [String: String]] = [:]
 
     let source: any ByteSource
     private var segmentDataOffset: Int64 = 0
@@ -167,11 +199,17 @@ public final class MatroskaDemuxer {
         }
 
         // Muxers that write the index after the clusters point to it from the SeekHead.
-        for id in [ID.info, ID.tracks, ID.cues] where !seen.contains(id) {
+        for id in [ID.info, ID.tracks, ID.cues, ID.tags, ID.chapters, ID.attachments] where !seen.contains(id) {
             guard let position = seekEntries[id], position < segmentEnd else { continue }
             var seekReader = EBMLReader(source: source, offset: position)
             if let element = try? seekReader.readElementHeader(), element.id == id {
                 try? parseTopLevel(element, seekEntries: &seekEntries)
+            }
+        }
+
+        for index in tracks.indices {
+            if let uid = tracks[index].uid, let tags = trackTags[uid] {
+                tracks[index].tags = tags
             }
         }
     }
@@ -199,6 +237,11 @@ public final class MatroskaDemuxer {
                 case ID.timestampScale: timestampScale = max(1, EBMLReader.unsigned(try reader.readData(field)))
                 case ID.duration: duration = EBMLReader.float(try reader.readData(field))
                 case ID.title: title = EBMLReader.string(try reader.readData(field))
+                case ID.muxingApp: muxingApp = EBMLReader.string(try reader.readData(field))
+                case ID.writingApp: writingApp = EBMLReader.string(try reader.readData(field))
+                case ID.dateUTC:
+                    // Nanoseconds since 2001-01-01, the same epoch as Date's reference date.
+                    dateUTC = Date(timeIntervalSinceReferenceDate: Double(EBMLReader.signed(try reader.readData(field))) / 1e9)
                 default: break
                 }
             }
@@ -236,6 +279,54 @@ public final class MatroskaDemuxer {
                 }
             }
             cues.sort { $0.time < $1.time }
+        case ID.tags:
+            try forEachChild(of: element) { tag, _ in
+                guard tag.id == ID.tag else { return }
+                var targets: [UInt64] = []
+                var values: [String: String] = [:]
+                try forEachChild(of: tag) { field, reader in
+                    if field.id == ID.targets {
+                        try forEachChild(of: field) { target, reader in
+                            if target.id == ID.tagTrackUID { targets.append(EBMLReader.unsigned(try reader.readData(target))) }
+                        }
+                    } else if field.id == ID.simpleTag {
+                        var name: String?
+                        var value: String?
+                        try forEachChild(of: field) { item, reader in
+                            if item.id == ID.tagName { name = EBMLReader.string(try reader.readData(item)) }
+                            if item.id == ID.tagString { value = EBMLReader.string(try reader.readData(item)) }
+                        }
+                        if let name, let value { values[name] = value }
+                    }
+                }
+                let trackTargets = targets.filter { $0 != 0 }
+                if trackTargets.isEmpty {
+                    tags.merge(values) { $1 }
+                } else {
+                    for uid in trackTargets { trackTags[uid, default: [:]].merge(values) { $1 } }
+                }
+            }
+        case ID.chapters:
+            try forEachChild(of: element) { edition, _ in
+                guard edition.id == ID.editionEntry else { return }
+                try forEachChild(of: edition) { atom, _ in
+                    if atom.id == ID.chapterAtom { chapterCount += 1 }
+                }
+            }
+        case ID.attachments:
+            try forEachChild(of: element) { file, _ in
+                guard file.id == ID.attachedFile else { return }
+                var attachment = MatroskaAttachment(name: "", mediaType: "", size: 0)
+                try forEachChild(of: file) { field, reader in
+                    switch field.id {
+                    case ID.fileName: attachment.name = EBMLReader.string(try reader.readData(field))
+                    case ID.fileMediaType: attachment.mediaType = EBMLReader.string(try reader.readData(field))
+                    case ID.fileData: if case .known(let size) = field.size { attachment.size = Int(clamping: size) }
+                    default: break
+                    }
+                }
+                attachments.append(attachment)
+            }
         default:
             break
         }
@@ -247,6 +338,12 @@ public final class MatroskaDemuxer {
             switch field.id {
             case ID.trackNumber:
                 track.number = EBMLReader.unsigned(try reader.readData(field))
+            case ID.trackUID:
+                track.uid = EBMLReader.unsigned(try reader.readData(field))
+            case ID.flagDefault:
+                track.isDefault = EBMLReader.unsigned(try reader.readData(field)) != 0
+            case ID.flagForced:
+                track.isForced = EBMLReader.unsigned(try reader.readData(field)) != 0
             case ID.trackType:
                 switch EBMLReader.unsigned(try reader.readData(field)) {
                 case 1: track.type = .video
@@ -263,12 +360,15 @@ public final class MatroskaDemuxer {
             case ID.video:
                 var video = MatroskaTrack.Video(pixelWidth: 0, pixelHeight: 0)
                 try forEachChild(of: field) { item, reader in
-                    let value = Int(clamping: EBMLReader.unsigned(try reader.readData(item)))
+                    // Colour is a master element; everything else here is an unsigned integer.
+                    let value = item.id == ID.colour ? 0 : Int(clamping: EBMLReader.unsigned(try reader.readData(item)))
                     switch item.id {
                     case ID.pixelWidth: video.pixelWidth = value
                     case ID.pixelHeight: video.pixelHeight = value
                     case ID.displayWidth: video.displayWidth = value
                     case ID.displayHeight: video.displayHeight = value
+                    case ID.flagInterlaced: video.isInterlaced = value == 1
+                    case ID.colour: video.colour = try parseColour(item)
                     default: break
                     }
                 }
@@ -291,6 +391,25 @@ public final class MatroskaDemuxer {
             }
         }
         return track.number == 0 ? nil : track
+    }
+
+    private func parseColour(_ element: EBMLElementHeader) throws -> MatroskaTrack.Colour {
+        var colour = MatroskaTrack.Colour()
+        try forEachChild(of: element) { field, reader in
+            guard field.id != ID.masteringMetadata else { return }
+            let value = Int(clamping: EBMLReader.unsigned(try reader.readData(field)))
+            switch field.id {
+            case ID.matrixCoefficients: colour.matrixCoefficients = value
+            case ID.bitsPerChannel: colour.bitsPerChannel = value
+            case ID.range: colour.range = value
+            case ID.transferCharacteristics: colour.transferCharacteristics = value
+            case ID.primaries: colour.primaries = value
+            case ID.maxCLL: colour.maxContentLightLevel = value
+            case ID.maxFALL: colour.maxFrameAverageLightLevel = value
+            default: break
+            }
+        }
+        return colour
     }
 
     /// Header stripping (ContentCompAlgo 3) is common in mkvmerge output; other encodings are left as-is.
@@ -440,9 +559,40 @@ public final class MatroskaDemuxer {
         static let block: UInt32 = 0xA1
         static let referenceBlock: UInt32 = 0xFB
         static let void: UInt32 = 0xEC
+        static let muxingApp: UInt32 = 0x4D80
+        static let writingApp: UInt32 = 0x5741
+        static let dateUTC: UInt32 = 0x4461
+        static let trackUID: UInt32 = 0x73C5
+        static let flagDefault: UInt32 = 0x88
+        static let flagForced: UInt32 = 0x55AA
+        static let flagInterlaced: UInt32 = 0x9A
+        static let colour: UInt32 = 0x55B0
+        static let matrixCoefficients: UInt32 = 0x55B1
+        static let bitsPerChannel: UInt32 = 0x55B2
+        static let range: UInt32 = 0x55B9
+        static let transferCharacteristics: UInt32 = 0x55BA
+        static let primaries: UInt32 = 0x55BB
+        static let maxCLL: UInt32 = 0x55BC
+        static let maxFALL: UInt32 = 0x55BD
+        static let masteringMetadata: UInt32 = 0x55D0
+        static let tags: UInt32 = 0x1254_C367
+        static let tag: UInt32 = 0x7373
+        static let targets: UInt32 = 0x63C0
+        static let tagTrackUID: UInt32 = 0x63C5
+        static let simpleTag: UInt32 = 0x67C8
+        static let tagName: UInt32 = 0x45A3
+        static let tagString: UInt32 = 0x4487
+        static let chapters: UInt32 = 0x1043_A770
+        static let editionEntry: UInt32 = 0x45B9
+        static let chapterAtom: UInt32 = 0xB6
+        static let attachments: UInt32 = 0x1941_A469
+        static let attachedFile: UInt32 = 0x61A7
+        static let fileName: UInt32 = 0x466E
+        static let fileMediaType: UInt32 = 0x4660
+        static let fileData: UInt32 = 0x465C
 
         /// Level-1 elements: inside a cluster of unknown size, one of these ends the cluster.
-        static let topLevel: Set<UInt32> = [cluster, cues, seekHead, info, tracks, 0x1254_C367, 0x1043_A770, 0x1941_A469]
+        static let topLevel: Set<UInt32> = [cluster, cues, seekHead, info, tracks, tags, chapters, attachments]
     }
 
     // MARK: - Frame reading

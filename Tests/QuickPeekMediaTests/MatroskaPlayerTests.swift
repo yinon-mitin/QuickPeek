@@ -8,6 +8,13 @@ import Testing
 /// presenting frames and reaching the end on the audio clock are only checked on real Macs.
 let onRealMac = ProcessInfo.processInfo.environment["CI"] == nil
 
+/// The display layer only presents frames to an awake, unlocked screen.
+let screenIsAvailable: Bool = {
+    let session = CGSessionCopyCurrentDictionary() as? [String: Any] ?? [:]
+    let locked = session["CGSSessionScreenIsLocked"] as? Bool ?? false
+    return onRealMac && CGDisplayIsAsleep(CGMainDisplayID()) == 0 && !locked
+}()
+
 @Suite("MatroskaPlayer", .serialized)
 @MainActor
 struct MatroskaPlayerTests {
@@ -39,7 +46,7 @@ struct MatroskaPlayerTests {
         await waitUntil { player.currentTime > 0.4 }
         #expect(player.currentTime > 0.4)
         #expect(player.error == nil)
-        if onRealMac {
+        if screenIsAvailable {
             #expect(player.displayedFrame() != nil)
         }
         player.pause()

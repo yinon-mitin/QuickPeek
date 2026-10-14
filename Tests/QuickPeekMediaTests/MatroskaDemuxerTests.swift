@@ -133,3 +133,25 @@ struct MatroskaDemuxerTests {
         #expect(frames.count < 58)
     }
 }
+
+@Suite("MatroskaDemuxer metadata")
+struct MatroskaMetadataTests {
+    @Test("Colour signalling of an HDR10 track")
+    func colour() throws {
+        let demuxer = try MatroskaDemuxer(url: fixtureURL("hdr10.mkv"))
+        let colour = try #require(demuxer.tracks.first { $0.type == .video }?.video?.colour)
+        #expect(colour.transferCharacteristics == 16) // SMPTE ST 2084 (PQ)
+        #expect(colour.primaries == 9)                // BT.2020
+        #expect(colour.matrixCoefficients == 9)       // BT.2020 non-constant
+    }
+
+    @Test("Muxing application, track tags and flags")
+    func tags() throws {
+        let demuxer = try MatroskaDemuxer(url: fixtureURL("h264_aac.mkv"))
+        #expect(demuxer.muxingApp?.hasPrefix("Lavf") == true)
+        let video = try #require(demuxer.tracks.first { $0.type == .video })
+        #expect(video.tags["DURATION"] != nil)
+        // ffmpeg writes FlagDefault = 0 for tracks without a "default" disposition (ffprobe agrees).
+        #expect(!video.isDefault)
+    }
+}

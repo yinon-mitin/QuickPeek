@@ -39,7 +39,7 @@ protocol InfoReader {
 
 public enum FileInfoReader {
     static let readers: [any InfoReader.Type] = [
-        TorrentInfo.self, ArchiveInfo.self, PDFInfo.self, FontInfo.self, TextInfo.self,
+        MatroskaInfo.self, AVMediaInfo.self, TorrentInfo.self, ArchiveInfo.self, PDFInfo.self, FontInfo.self, TextInfo.self,
     ]
 
     public static func read(_ url: URL, locale: Locale = .autoupdatingCurrent) -> FileInfo {
@@ -74,7 +74,7 @@ public enum FileInfoReader {
 }
 
 /// Locale-aware formatting shared by all readers.
-struct InfoFormat {
+struct InfoFormat: Sendable {
     let locale: Locale
 
     func bytes(_ count: Int64) -> String {

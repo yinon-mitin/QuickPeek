@@ -1,0 +1,165 @@
+name: QuickPeek
+
+options:
+  bundleIdPrefix: io.github.yinon-mitin
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    MARKETING_VERSION: 0.1.0
+    CURRENT_PROJECT_VERSION: 1
+    SWIFT_VERSION: "5.0"
+    # Ad-hoc signing for local builds; release signing is configured in CI.
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_STYLE: Manual
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: YES
+    DEAD_CODE_STRIPPING: YES
+
+packages:
+  QuickPeek:
+    path: .
+
+targets:
+  QuickPeek:
+    type: application
+    platform: macOS
+    sources:
+      - App
+      - path: Vendor
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - target: QuickPeekPreview
+      - package: QuickPeek
+        product: QuickPeekCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.yinon-mitin.QuickPeek
+        GENERATE_INFOPLIST_FILE: NO
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: QuickPeek
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.developer-tools
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSHumanReadableCopyright: Copyright © 2026 Yinon Mitin. MIT License.
+        # Types macOS only knows as dynamic UTIs; declaring them lets the extension claim them.
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: org.kotlinlang.kotlin-source
+            UTTypeDescription: Kotlin Source
+            UTTypeConformsTo: [public.source-code, public.plain-text]
+            UTTypeTagSpecification:
+              public.filename-extension: [kt, kts]
+          - UTTypeIdentifier: org.gradle.gradle-script
+            UTTypeDescription: Gradle Script
+            UTTypeConformsTo: [public.source-code, public.plain-text]
+            UTTypeTagSpecification:
+              public.filename-extension: [gradle]
+          - UTTypeIdentifier: org.graphql.graphql
+            UTTypeDescription: GraphQL Document
+            UTTypeConformsTo: [public.source-code, public.plain-text]
+            UTTypeTagSpecification:
+              public.filename-extension: [graphql, gql]
+          - UTTypeIdentifier: com.hashicorp.terraform
+            UTTypeDescription: Terraform Configuration
+            UTTypeConformsTo: [public.source-code, public.plain-text]
+            UTTypeTagSpecification:
+              public.filename-extension: [tf, tfvars, hcl]
+    # The host app is not sandboxed: its --render/--snapshot modes read files given on the command line.
+    # Only the Quick Look extension, which renders untrusted files, has to run in the sandbox.
+
+  QuickPeekPreview:
+    type: app-extension
+    platform: macOS
+    sources:
+      - PreviewExtension
+      - path: Vendor
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - package: QuickPeek
+        product: QuickPeekCore
+      - sdk: Quartz.framework
+      - sdk: WebKit.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.yinon-mitin.QuickPeek.Preview
+        GENERATE_INFOPLIST_FILE: NO
+    info:
+      path: PreviewExtension/Info.plist
+      properties:
+        CFBundleDisplayName: QuickPeek Preview
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.quicklook.preview
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PreviewViewController
+          NSExtensionAttributes:
+            QLIsDataBasedPreview: false
+            QLSupportsSearchableItems: false
+            QLSupportedContentTypes:
+              # Config and data
+              - public.yaml
+              - public.json
+              - org.json.jsonc
+              - public.toml
+              - com.microsoft.ini
+              - public.xml
+              - public.properties
+              # Source code
+              - public.swift-source
+              - public.python-script
+              - public.shell-script
+              - public.bash-script
+              - public.zsh-script
+              - public.ruby-script
+              - public.perl-script
+              - public.php-script
+              - com.netscape.javascript-source
+              - public.tsx
+              - org.go.source
+              - org.rust-lang.rust
+              - public.c-source
+              - public.c-header
+              - public.c-plus-plus-source
+              - public.c-plus-plus-header
+              - public.objective-c-source
+              - public.objective-c-plus-plus-source
+              - com.sun.java-source
+              - com.microsoft.csharp-source
+              - org.lua.lua-source
+              - org.iso.sql
+              - public.css
+              - com.barebones.bbedit.scss-source
+              - com.docker.dockerfile
+              - public.protobuf-source
+              - public.patch-file
+              - public.make-source
+              - org.kotlinlang.kotlin-source
+              - org.gradle.gradle-script
+              - org.graphql.graphql
+              - com.hashicorp.terraform
+              # Documents and tables
+              - net.daringfireball.markdown
+              - com.unknown.md
+              - public.comma-separated-values-text
+              - public.tab-separated-values-text
+              - public.utf8-tab-separated-values-text
+              - org.jupyter.ipynb
+              # Plain text and logs
+              - public.plain-text
+              - com.apple.log
+    entitlements:
+      path: PreviewExtension/QuickPeekPreview.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-only: true
+        # WKWebView's web content process does not start in a sandboxed extension without it.
+        # Previews still cannot reach the network: every document carries a CSP of default-src 'none'.
+        com.apple.security.network.client: true

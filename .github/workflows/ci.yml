@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify vendored assets
+        run: cd Vendor && shasum -a 256 --check --quiet checksums.sha256
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Test and build
+        run: script/build.sh
+      - name: Upload app
+        uses: actions/upload-artifact@v4
+        with:
+          name: QuickPeek
+          path: build/QuickPeek.app

@@ -1,6 +1,8 @@
 import Cocoa
+import OSLog
 import Quartz
 import QuickPeekCore
+import QuickPeekFormats
 import QuickPeekMedia
 import WebKit
 
@@ -29,9 +31,24 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
         playerView?.stop()
     }
 
+    /// Failures show up in Console.app under this subsystem.
+    private static let log = Logger(subsystem: "io.github.yinon-mitin.QuickPeek", category: "preview")
+
     func preparePreviewOfFile(at url: URL) async throws {
+        do {
+            try await preparePreview(url)
+        } catch {
+            Self.log.error("Preview of \(url.pathExtension, privacy: .public) file failed: \(String(describing: error), privacy: .public)")
+            throw error
+        }
+    }
+
+    private func preparePreview(_ url: URL) async throws {
         if Self.matroskaExtensions.contains(url.pathExtension.lowercased()) {
             try showPlayer(for: url)
+        } else if StructuredPreview.handles(url) {
+            install(try StructuredPreview.view(for: url))
+            preferredContentSize = NSSize(width: 760, height: 560)
         } else {
             try await showDocument(url)
         }

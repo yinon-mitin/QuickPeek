@@ -28,8 +28,9 @@ targets:
     platform: macOS
     sources:
       - App
-      # The player UI is shared: the app can play a file in a window (--play) for debugging.
+      # Preview UI is shared so the app can show it in a window (--play, --snapshot) for debugging.
       - PreviewExtension/PlayerView.swift
+      - PreviewExtension/StructuredPreviews.swift
       - path: Vendor
         type: folder
         buildPhase: resources
@@ -40,6 +41,8 @@ targets:
         product: QuickPeekCore
       - package: QuickPeek
         product: QuickPeekMedia
+      - package: QuickPeek
+        product: QuickPeekFormats
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.yinon-mitin.QuickPeek
@@ -91,6 +94,8 @@ targets:
         product: QuickPeekCore
       - package: QuickPeek
         product: QuickPeekMedia
+      - package: QuickPeek
+        product: QuickPeekFormats
       - sdk: Quartz.framework
       - sdk: WebKit.framework
     settings:
@@ -172,6 +177,26 @@ targets:
               - io.mpv.webm
               - org.videolan.mkv
               - org.videolan.webm
+              # Archives (listed with the system libarchive) and torrents
+              - public.zip-archive
+              - com.sun.java-archive
+              - public.tar-archive
+              - org.gnu.gnu-zip-archive
+              - org.gnu.gnu-zip-tar-archive
+              - public.bzip2-archive
+              - public.tar-bzip2-archive
+              - org.tukaani.xz-archive
+              - org.tukaani.tar-xz-archive
+              - org.tukaani.lzma-archive
+              - public.z-archive
+              - com.rarlab.rar-archive
+              - org.7-zip.7-zip-archive
+              - public.iso-image
+              - public.cpio-archive
+              - com.apple.xar-archive
+              - com.microsoft.cab
+              - public.archive.lha
+              - org.bittorrent.torrent
     entitlements:
       path: PreviewExtension/QuickPeekPreview.entitlements
       properties:

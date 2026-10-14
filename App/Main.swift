@@ -19,6 +19,10 @@ enum Main {
         switch arguments.first {
         case "--render" where arguments.count == 2:
             render(URL(fileURLWithPath: arguments[1]))
+        case "--snapshot" where arguments.count >= 3 && StructuredPreview.handles(URL(fileURLWithPath: arguments[1])):
+            let input = URL(fileURLWithPath: arguments[1])
+            ViewSnapshot.run(output: URL(fileURLWithPath: arguments[2]), dark: arguments.contains("--dark"),
+                             size: NSSize(width: 760, height: 560)) { try StructuredPreview.view(for: input) }
         case "--snapshot" where arguments.count >= 3:
             Snapshotter.run(
                 input: URL(fileURLWithPath: arguments[1]),

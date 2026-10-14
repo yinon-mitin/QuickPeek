@@ -173,21 +173,16 @@ enum AVMediaInfo: InfoReader {
         type.conforms(to: .audiovisualContent) && !MatroskaInfo.canRead(type, url: url)
     }
 
+    /// Not used: FileInfoReader calls `describe` itself, so it can await it in async contexts.
     static func read(_ url: URL, format: InfoFormat) throws -> (sections: [InfoSection], summary: String?) {
+        throw CocoaError(.featureUnsupported)
+    }
+
+    /// Loads the asset with AVFoundation's async API. FileInfoReader awaits this from async
+    /// contexts, or wraps it in `runBlocking` for synchronous callers.
+    static func describe(url: URL, format: InfoFormat) async throws -> (sections: [InfoSection], summary: String?) {
         let type = UTType(filenameExtension: url.pathExtension)
         let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).map(Double.init)
-        let result = try runBlocking(timeout: format.quick ? 1 : 5) {
-            try await describe(url: url, type: type, fileSize: fileSize, format: format)
-        }
-        return (result.sections, result.summary)
-    }
-
-    private struct Result: Sendable {
-        var sections: [InfoSection]
-        var summary: String?
-    }
-
-    private static func describe(url: URL, type: UTType?, fileSize: Double?, format: InfoFormat) async throws -> Result {
         let asset = AVURLAsset(url: url)
         let (duration, tracks, metadata) = try await asset.load(.duration, .tracks, .commonMetadata)
         let seconds = duration.seconds.isFinite ? duration.seconds : nil
@@ -249,7 +244,7 @@ enum AVMediaInfo: InfoReader {
         }
 
         let line = (videoLine ?? audioLine).map { [$0, seconds.map(format.duration)].compactMap { $0 }.joined(separator: " · ") }
-        return Result(sections: sections, summary: line)
+        return (sections, line)
     }
 
     private static func videoDetails(_ description: CMFormatDescription, size: CGSize, transform: CGAffineTransform,

@@ -4,15 +4,15 @@ import Testing
 
 let mediaFixtures = repositoryRoot.appendingPathComponent("Tests/QuickPeekMediaTests/Fixtures")
 
-func mediaInfo(_ name: String) -> FileInfo {
-    FileInfoReader.read(mediaFixtures.appendingPathComponent(name), locale: Locale(identifier: "en_US"))
+func mediaInfo(_ name: String) async -> FileInfo {
+    await FileInfoReader.read(mediaFixtures.appendingPathComponent(name), locale: Locale(identifier: "en_US"))
 }
 
 @Suite("FileInfo: video and audio")
 struct MediaInfoTests {
     @Test("MP4 with H.264, AAC and tags (AVFoundation)")
-    func mp4() {
-        let info = mediaInfo("h264_aac.mp4")
+    func mp4() async {
+        let info = await mediaInfo("h264_aac.mp4")
         #expect(info.value("Container", in: "Media") == "MPEG-4")
         #expect(info.value("Duration", in: "Media") == "0:01")
         #expect(info.value("Title", in: "Media") == "QuickPeek Sample")
@@ -29,8 +29,8 @@ struct MediaInfoTests {
     }
 
     @Test("HDR10 HEVC is recognised in MP4 and Matroska", arguments: ["hdr10.mp4", "hdr10.mkv"])
-    func hdr(file: String) {
-        let info = mediaInfo(file)
+    func hdr(file: String) async {
+        let info = await mediaInfo(file)
         #expect(info.value("Codec", in: "Video") == "HEVC")
         #expect(info.value("Profile", in: "Video") == "Main 10@L1, Main tier")
         #expect(info.value("HDR", in: "Video") == "HDR10 (PQ)")
@@ -40,8 +40,8 @@ struct MediaInfoTests {
     }
 
     @Test("Matroska and WebM through QuickPeek's demuxer")
-    func matroska() {
-        let mkv = mediaInfo("h264_aac.mkv")
+    func matroska() async {
+        let mkv = await mediaInfo("h264_aac.mkv")
         #expect(mkv.value("Container", in: "Media") == "Matroska")
         #expect(mkv.value("Codec", in: "Video") == "H.264")
         #expect(mkv.value("Profile", in: "Video") == "High@L1")
@@ -50,7 +50,7 @@ struct MediaInfoTests {
         #expect(mkv.value("Channels", in: "Audio") == "1 (mono)")
         #expect(mkv.value("Muxing application", in: "Media")?.hasPrefix("Lavf") == true)
 
-        let webm = mediaInfo("vp9_opus.webm")
+        let webm = await mediaInfo("vp9_opus.webm")
         #expect(webm.value("Container", in: "Media") == "WebM")
         #expect(webm.value("Codec", in: "Video") == "VP9")
         #expect(webm.value("Profile", in: "Video") == "Profile 0")
@@ -58,14 +58,14 @@ struct MediaInfoTests {
     }
 
     @Test("Lossless and MP3 audio")
-    func audio() {
-        let alac = mediaInfo("lossless.m4a")
+    func audio() async {
+        let alac = await mediaInfo("lossless.m4a")
         #expect(alac.value("Codec", in: "Audio") == "ALAC")
         #expect(alac.value("Bit depth", in: "Audio") == "16 bits")
         #expect(alac.value("Channels", in: "Audio") == "1 (mono)")
         #expect(alac.summary == "ALAC · 48 kHz · mono · 0:01")
 
-        let mp3 = mediaInfo("song.mp3")
+        let mp3 = await mediaInfo("song.mp3")
         #expect(mp3.value("Codec", in: "Audio") == "MP3")
         #expect(mp3.value("Bitrate", in: "Audio") == "128 kb/s")
         #expect(mp3.value("Channels", in: "Audio") == "2 (stereo)")

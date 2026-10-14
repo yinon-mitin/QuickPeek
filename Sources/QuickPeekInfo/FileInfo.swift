@@ -43,10 +43,46 @@ public enum FileInfoReader {
         ArchiveInfo.self, PDFInfo.self, FontInfo.self, TextInfo.self,
     ]
 
+    /// Synchronous reading, for callers on the main thread or their own thread (Finder's
+    /// context menu, the command line). Do not call it from Swift concurrency's cooperative
+    /// threads: media details wait for AVFoundation's async loading. Use the async overload there.
+    ///
     /// - Parameter quick: keep to a fraction of a second (Finder's context menu waits for the
     ///   answer): archives are listed only briefly, media loading times out sooner, bundle
     ///   sizes are skipped.
     public static func read(_ url: URL, locale: Locale = .autoupdatingCurrent, quick: Bool = false) -> FileInfo {
+        let (format, type, general, size) = generalSection(url, locale: locale, quick: quick)
+        var result: (sections: [InfoSection], summary: String?)?
+        for reader in readers where reader.canRead(type, url: url) {
+            if reader == AVMediaInfo.self {
+                result = (try? runBlocking(timeout: format.quick ? 1 : 5) {
+                    let media = try await AVMediaInfo.describe(url: url, format: format)
+                    return MediaResult(sections: media.sections, summary: media.summary)
+                })?.tuple
+            } else {
+                result = try? reader.read(url, format: format)
+            }
+            if result != nil { break }
+        }
+        return assemble(general, result, size: size, format: format)
+    }
+
+    /// Asynchronous reading, for Swift concurrency callers (Quick Look's ⓘ panel, tests).
+    public static func read(_ url: URL, locale: Locale = .autoupdatingCurrent, quick: Bool = false) async -> FileInfo {
+        let (format, type, general, size) = generalSection(url, locale: locale, quick: quick)
+        var result: (sections: [InfoSection], summary: String?)?
+        for reader in readers where reader.canRead(type, url: url) {
+            if reader == AVMediaInfo.self {
+                result = try? await AVMediaInfo.describe(url: url, format: format)
+            } else {
+                result = try? reader.read(url, format: format)
+            }
+            if result != nil { break }
+        }
+        return assemble(general, result, size: size, format: format)
+    }
+
+    private static func generalSection(_ url: URL, locale: Locale, quick: Bool) -> (InfoFormat, UTType, InfoSection, Int64?) {
         let format = InfoFormat(locale: locale, quick: quick)
         let values = try? url.resourceValues(forKeys: [
             .fileSizeKey, .totalFileAllocatedSizeKey, .creationDateKey, .contentModificationDateKey,
@@ -64,17 +100,19 @@ public enum FileInfoReader {
         if let size { general.append(InfoItem("Size", format.bytesWithCount(size))) }
         if let created = values?.creationDate { general.append(InfoItem("Created", format.date(created))) }
         if let modified = values?.contentModificationDate { general.append(InfoItem("Modified", format.date(modified))) }
-
-        var sections = [InfoSection("General", symbol: "doc", items: general)]
-        var summary: String?
-        for reader in readers where reader.canRead(type, url: url) {
-            guard let result = try? reader.read(url, format: format) else { continue }
-            sections += result.sections
-            summary = result.summary
-            break
-        }
-        return FileInfo(sections: sections, summary: summary ?? size.map(format.bytes) ?? "")
+        return (format, type, InfoSection("General", symbol: "doc", items: general), size)
     }
+
+    private static func assemble(_ general: InfoSection, _ result: (sections: [InfoSection], summary: String?)?,
+                                 size: Int64?, format: InfoFormat) -> FileInfo {
+        FileInfo(sections: [general] + (result?.sections ?? []), summary: result?.summary ?? size.map(format.bytes) ?? "")
+    }
+}
+
+struct MediaResult: Sendable {
+    var sections: [InfoSection]
+    var summary: String?
+    var tuple: (sections: [InfoSection], summary: String?) { (sections, summary) }
 }
 
 /// Locale-aware formatting shared by all readers.

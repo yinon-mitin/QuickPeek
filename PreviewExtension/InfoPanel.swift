@@ -91,7 +91,7 @@ final class InfoButton: NSButton {
         }
         let url = fileURL
         Task {
-            let info = await Task.detached(priority: .userInitiated) { FileInfoReader.read(url) }.value
+            let info = await Task.detached(priority: .userInitiated) { await FileInfoReader.read(url) }.value
             popover.contentViewController = NSHostingController(rootView: InfoPanel(info: info))
             popover.show(relativeTo: bounds, of: self, preferredEdge: .minY)
         }

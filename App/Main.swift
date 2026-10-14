@@ -1,5 +1,6 @@
 import AppKit
 import QuickPeekCore
+import QuickPeekInfo
 import QuickPeekMedia
 import QuickPeekText
 
@@ -9,6 +10,7 @@ import QuickPeekText
 ///     QuickPeek --snapshot <file> <out.png> [--dark] render a document, archive or torrent preview to a PNG
 ///     QuickPeek --thumbnail <video> <out.png> [size]  decode the thumbnail frame of a video
 ///     QuickPeek --probe <video>                     list tracks and count frames, like ffprobe
+///     QuickPeek --info <file> [...]                 technical details of any file, like mediainfo
 ///     QuickPeek --play <video>                      play in a window with the Quick Look player
 ///     QuickPeek --play-snapshot <video> <out.png>   play briefly and save the player as a PNG
 @main
@@ -34,6 +36,10 @@ enum Main {
             )
         case "--probe" where arguments.count == 2:
             probe(URL(fileURLWithPath: arguments[1]))
+        case "--info" where arguments.count >= 2:
+            for path in arguments.dropFirst() {
+                printInfo(FileInfoReader.read(URL(fileURLWithPath: path)))
+            }
         case "--play" where arguments.count == 2:
             PlayerWindow.run(URL(fileURLWithPath: arguments[1]), snapshotTo: nil)
         case "--play-snapshot" where arguments.count == 3:
@@ -79,6 +85,18 @@ enum Main {
         } catch {
             fail("\(input.path): \(error)")
         }
+    }
+
+    private static func printInfo(_ info: FileInfo) {
+        print(info.summary)
+        for section in info.sections {
+            print("\n\(section.title)")
+            let width = section.items.map(\.label.count).max() ?? 0
+            for item in section.items {
+                print("  " + item.label.padding(toLength: width, withPad: " ", startingAt: 0) + "  " + item.value)
+            }
+        }
+        print("")
     }
 
     static func fail(_ message: String) -> Never {

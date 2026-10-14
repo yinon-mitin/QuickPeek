@@ -75,3 +75,36 @@ write("private-utf8.torrent", {
         "files": [{"length": 42, "path": ["отчёт.pdf"]}],
     },
 })
+
+# --- Office Open XML documents with known properties (for QuickPeekInfo) ---
+import zipfile
+
+CORE = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+ xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/"
+ xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<dc:title>{title}</dc:title><dc:creator>Ada Lovelace</dc:creator><cp:lastModifiedBy>Charles Babbage</cp:lastModifiedBy>
+<cp:revision>7</cp:revision>
+<dcterms:created xsi:type="dcterms:W3CDTF">2026-01-02T15:30:00Z</dcterms:created>
+<dcterms:modified xsi:type="dcterms:W3CDTF">2026-02-03T10:00:00Z</dcterms:modified>
+</cp:coreProperties>"""
+
+
+def office(name, title, app_fields, extra):
+    app = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+           '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties">'
+           + "".join(f"<{k}>{v}</{k}>" for k, v in app_fields.items()) + "</Properties>")
+    with zipfile.ZipFile(OUT / name, "w", zipfile.ZIP_DEFLATED) as archive:
+        for info_name, content in [("[Content_Types].xml", "<Types/>"), ("docProps/core.xml", CORE.format(title=title)),
+                                   ("docProps/app.xml", app)] + extra:
+            entry = zipfile.ZipInfo(info_name, date_time=(2026, 1, 2, 15, 30, 0))
+            archive.writestr(entry, content)
+    print(f"{name}: {(OUT / name).stat().st_size} bytes")
+
+
+office("report.docx", "Annual Report", {"Application": "Microsoft Office Word", "Pages": 3, "Words": 1200, "Characters": 7000},
+       [("word/document.xml", "<w:document/>")])
+office("budget.xlsx", "Budget 2026", {"Application": "Microsoft Excel"},
+       [("xl/workbook.xml", '<workbook><sheets><sheet name="Income"/><sheet name="Expenses"/><sheet name="Summary"/></sheets></workbook>')])
+office("deck.pptx", "Launch Plan", {"Application": "Microsoft Office PowerPoint", "Slides": 12, "Notes": 4},
+       [("ppt/presentation.xml", "<p:presentation/>")])

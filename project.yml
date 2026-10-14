@@ -45,6 +45,8 @@ targets:
         product: QuickPeekFormats
       - package: QuickPeek
         product: QuickPeekText
+      - package: QuickPeek
+        product: QuickPeekInfo
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.yinon-mitin.QuickPeek

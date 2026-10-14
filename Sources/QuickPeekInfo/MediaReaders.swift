@@ -136,7 +136,9 @@ enum MatroskaInfo: InfoReader {
 
     private static func commonTrackItems(_ track: MatroskaTrack) -> [InfoItem] {
         var items: [InfoItem] = []
-        if let language = track.language, language != "und" {
+        // Matroska's default language, when a track has no Language element, is English.
+        let language = track.language ?? "eng"
+        if language != "und" {
             items.append(InfoItem("Language", Locale.current.localizedString(forLanguageCode: language) ?? language))
         }
         if let name = track.name, !name.isEmpty { items.append(InfoItem("Title", name)) }

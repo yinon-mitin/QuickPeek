@@ -42,6 +42,34 @@ public struct ArchiveListing: Sendable {
         return try list(url: url, raw: isSingleStream, maxEntries: maxEntries, timeLimit: timeLimit)
     }
 
+    /// The contents of one entry (for example `docProps/core.xml` in a .docx), up to `maxBytes`.
+    public static func data(ofEntry path: String, in url: URL, maxBytes: Int = 4 * 1024 * 1024) throws -> Data? {
+        guard let archive = archive_read_new() else { throw ArchiveError.unrecognized("libarchive unavailable") }
+        defer { archive_read_free(archive) }
+        archive_read_support_filter_all(archive)
+        archive_read_support_format_all(archive)
+        guard archive_read_open_filename(archive, url.path, 64 * 1024) == ARCHIVE_OK else {
+            throw ArchiveError.unrecognized(errorMessage(archive))
+        }
+        var entry: OpaquePointer?
+        while archive_read_next_header(archive, &entry) >= ARCHIVE_WARN, let current = entry {
+            let name = string(archive_entry_pathname_utf8(current)) ?? string(archive_entry_pathname(current))
+            guard name == path else {
+                archive_read_data_skip(archive)
+                continue
+            }
+            var data = Data()
+            var buffer = [UInt8](repeating: 0, count: 64 * 1024)
+            while data.count < maxBytes {
+                let count = buffer.withUnsafeMutableBytes { archive_read_data(archive, $0.baseAddress, $0.count) }
+                if count <= 0 { break }
+                data.append(contentsOf: buffer.prefix(min(count, maxBytes - data.count)))
+            }
+            return data
+        }
+        return nil
+    }
+
     private static func list(url: URL, raw: Bool, maxEntries: Int, timeLimit: TimeInterval) throws -> ArchiveListing {
         guard let archive = archive_read_new() else { throw ArchiveError.unrecognized("libarchive unavailable") }
         defer { archive_read_free(archive) }

@@ -62,11 +62,13 @@ struct PhotoInfoTests {
         #expect(photo.value("Altitude", in: "Location") == "15 m")
     }
 
-    @Test("Sony RAW, when a sample is available locally")
+    static let rawSample = repositoryRoot.appendingPathComponent("build/samples2/ZV-E10.ARW")
+
+    /// RAW samples are tens of megabytes, so they are not in the repository. Download one from
+    /// raw.pixls.us (Sony ZV-E10) to build/samples2/ZV-E10.ARW to run this test.
+    @Test("Sony RAW", .enabled(if: FileManager.default.fileExists(atPath: rawSample.path), "no local ARW sample"))
     func raw() throws {
-        let url = repositoryRoot.appendingPathComponent("build/samples2/ZV-E10.ARW")
-        try #require(FileManager.default.fileExists(atPath: url.path), "download a Sony ARW sample to build/samples2 to run this")
-        let raw = info(url)
+        let raw = info(Self.rawSample)
         #expect(raw.value("Resolution", in: "Image") == "6000 × 4000")
         #expect(raw.value("Camera", in: "Camera")?.contains("ZV-E10") == true)
     }

@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import QuickPeekCore
+import QuickPeekFormats
 import QuickPeekInfo
 import QuickPeekMedia
 import QuickPeekText
@@ -52,6 +53,25 @@ enum Main {
                 let info = FileInfoReader.read(URL(fileURLWithPath: path), quick: quick)
                 printInfo(info)
                 if quick { print(String(format: "(%.0f ms)\n", Date().timeIntervalSince(started) * 1000)) }
+            }
+        case "--package" where arguments.count >= 2:
+            // JSON per package, for comparing the APK/IPA readers with other tools.
+            for path in arguments.dropFirst() {
+                var fields: [String: Any] = ["file": (path as NSString).lastPathComponent]
+                do {
+                    let package = try AppPackage.read(url: URL(fileURLWithPath: path))
+                    fields["name"] = package.name
+                    fields["identifier"] = package.identifier ?? NSNull()
+                    fields["version"] = package.version ?? NSNull()
+                    fields["build"] = package.build ?? NSNull()
+                    fields["minimumOS"] = package.minimumOS ?? NSNull()
+                    fields["permissions"] = package.permissions
+                    fields["iconBytes"] = package.iconData?.count ?? 0
+                } catch {
+                    fields["error"] = "\(error)"
+                }
+                let json = try? JSONSerialization.data(withJSONObject: fields, options: [.sortedKeys])
+                print(String(decoding: json ?? Data(), as: UTF8.self))
             }
         case "--play" where arguments.count == 2:
             PlayerWindow.run(URL(fileURLWithPath: arguments[1]), snapshotTo: nil)

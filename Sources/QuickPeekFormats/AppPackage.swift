@@ -247,9 +247,3 @@ public struct ProvisioningProfile: Sendable {
     }
 }
 
-/// Placeholder until the Android reader lands.
-enum AndroidPackage {
-    static func read(_ url: URL) throws -> AppPackage {
-        throw AppPackageError.noApplication
-    }
-}

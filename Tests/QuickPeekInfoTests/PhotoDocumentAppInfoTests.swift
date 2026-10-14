@@ -113,3 +113,32 @@ struct AppInfoTests {
         #expect(app.value("Version", in: "Application") != nil)
     }
 }
+
+@Suite("FileInfo: app packages")
+struct PackageInfoTests {
+    let apps = repositoryRoot.appendingPathComponent("Tests/QuickPeekFormatsTests/Fixtures/apps")
+
+    @Test("IPA: identity, provisioning and summary")
+    func ipa() {
+        let ipa = info(apps.appendingPathComponent("Demo.ipa"))
+        #expect(ipa.value("Bundle ID", in: "Application") == "com.example.demo")
+        #expect(ipa.value("Devices", in: "Application") == "iPhone, iPad")
+        #expect(ipa.value("Type", in: "Provisioning") == "Ad Hoc")
+        #expect(ipa.value("Team", in: "Provisioning") == "Example Team (ABCDE12345)")
+        #expect(ipa.summary == "Demo 2.3 (45) · iOS 16.0+")
+    }
+
+    @Test("APK: package, permissions and summary")
+    func apk() {
+        let apk = info(apps.appendingPathComponent("politedroid.apk"))
+        #expect(apk.value("Package", in: "Application") == "com.politedroid")
+        #expect(apk.value("Permissions", in: "Application") == "READ_CALENDAR")
+        #expect(apk.summary == "Polite Droid 1.3 (4) · Android 1.5+")
+    }
+
+    @Test("Xcode archive section")
+    func archive() {
+        let archive = info(apps.appendingPathComponent("Demo.xcarchive"))
+        #expect(archive.value("Scheme", in: "Xcode archive") == "Demo-Release")
+    }
+}

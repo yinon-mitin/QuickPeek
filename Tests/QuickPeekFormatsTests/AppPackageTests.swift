@@ -70,3 +70,43 @@ struct ApplePackageTests {
         #expect(package.minimumOS != nil)
     }
 }
+
+/// Expected values come from androguard (Apache-2.0), whose test suite these APKs are from.
+@Suite("AppPackage: Android")
+struct AndroidPackageTests {
+    @Test("Manifest, label and launcher icon of a real F-Droid app")
+    func politeDroid() throws {
+        let package = try AppPackage.read(url: appFixture("politedroid.apk"))
+        #expect(package.platform == .android)
+        #expect(package.name == "Polite Droid")
+        #expect(package.identifier == "com.politedroid")
+        #expect(package.version == "1.3")
+        #expect(package.build == "4")
+        #expect(package.minimumOS == "Android 1.5 (API 3)")
+        #expect(package.permissions == ["android.permission.READ_CALENDAR", "android.permission.RECEIVE_BOOT_COMPLETED"])
+        let icon = try #require(package.iconData)
+        #expect(icon.count == 1586) // res/drawable-xhdpi/icon.png, the highest density
+        #expect(NSBitmapImageRep(data: icon) != nil)
+    }
+
+    @Test("Without an application label, the launcher activity's label is used")
+    func activityLabel() throws {
+        let package = try AppPackage.read(url: appFixture("test-debug.apk"))
+        #expect(package.name == "TestActivity")
+        #expect(package.identifier == "org.t0t0.androguard.test")
+        #expect(package.version == "1.0")
+        #expect(package.iconData == nil)
+    }
+
+    @Test("API levels are named")
+    func apiLevels() {
+        #expect(AndroidPackage.versionName(apiLevel: 34) == "Android 14 (API 34)")
+        #expect(AndroidPackage.versionName(apiLevel: 99) == "API 99")
+    }
+
+    @Test("Garbage is rejected without crashing")
+    func garbage() {
+        #expect(throws: (any Error).self) { try AndroidBinaryXML.parse(Data([0x03, 0x00, 0x08, 0x00, 0xFF, 0xFF, 0xFF, 0x7F])) }
+        #expect(throws: (any Error).self) { try ResourceTable.parse(Data(repeating: 0xAB, count: 64)) }
+    }
+}

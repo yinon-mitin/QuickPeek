@@ -39,7 +39,7 @@ protocol InfoReader {
 
 public enum FileInfoReader {
     static let readers: [any InfoReader.Type] = [
-        MatroskaInfo.self, AVMediaInfo.self, PhotoInfo.self, TorrentInfo.self, OfficeInfo.self, AppInfo.self,
+        MatroskaInfo.self, AVMediaInfo.self, PhotoInfo.self, TorrentInfo.self, OfficeInfo.self, PackageInfo.self, AppInfo.self,
         ArchiveInfo.self, PDFInfo.self, FontInfo.self, TextInfo.self,
     ]
 

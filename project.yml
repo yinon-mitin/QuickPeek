@@ -43,6 +43,8 @@ targets:
         product: QuickPeekMedia
       - package: QuickPeek
         product: QuickPeekFormats
+      - package: QuickPeek
+        product: QuickPeekText
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.yinon-mitin.QuickPeek
@@ -96,8 +98,9 @@ targets:
         product: QuickPeekMedia
       - package: QuickPeek
         product: QuickPeekFormats
+      - package: QuickPeek
+        product: QuickPeekText
       - sdk: Quartz.framework
-      - sdk: WebKit.framework
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.yinon-mitin.QuickPeek.Preview
@@ -202,9 +205,9 @@ targets:
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.files.user-selected.read-only: true
-        # WKWebView's web content process does not start in a sandboxed extension without it.
-        # Previews still cannot reach the network: every document carries a CSP of default-src 'none'.
-        com.apple.security.network.client: true
+        # Lets JavaScriptCore compile highlight.js under the hardened runtime (about twice as fast).
+        # The extension has no network access.
+        com.apple.security.cs.allow-jit: true
 
   QuickPeekThumbnail:
     type: app-extension

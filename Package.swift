@@ -8,6 +8,7 @@ let package = Package(
         .library(name: "QuickPeekCore", targets: ["QuickPeekCore"]),
         .library(name: "QuickPeekMedia", targets: ["QuickPeekMedia"]),
         .library(name: "QuickPeekFormats", targets: ["QuickPeekFormats"]),
+        .library(name: "QuickPeekText", targets: ["QuickPeekText"]),
     ],
     targets: [
         .target(
@@ -28,6 +29,16 @@ let package = Package(
             name: "QuickPeekFormats",
             dependencies: ["CArchive"],
             path: "Sources/QuickPeekFormats"
+        ),
+        .target(
+            name: "QuickPeekText",
+            dependencies: ["QuickPeekCore"],
+            path: "Sources/QuickPeekText"
+        ),
+        .testTarget(
+            name: "QuickPeekTextTests",
+            dependencies: ["QuickPeekText"],
+            path: "Tests/QuickPeekTextTests"
         ),
         .testTarget(
             name: "QuickPeekFormatsTests",

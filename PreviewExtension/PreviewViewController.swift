@@ -4,21 +4,17 @@ import Quartz
 import QuickPeekCore
 import QuickPeekFormats
 import QuickPeekMedia
-import WebKit
+import QuickPeekText
 
-/// Quick Look preview entry point. Matroska/WebM goes to the native player; text formats are
-/// rendered to HTML by QuickPeekCore and shown in a WKWebView, created only when needed so a
-/// video preview never starts a WebKit process.
-final class PreviewViewController: NSViewController, QLPreviewingController, WKNavigationDelegate {
-    private static let assets: PreviewAssets = {
-        let vendor = Bundle.main.resourceURL!.appendingPathComponent("Vendor", isDirectory: true)
-        return (try? PreviewAssets.load(from: vendor)) ?? PreviewAssets(styles: [], scripts: [])
-    }()
-
+/// Quick Look preview entry point. Every preview is a native view: the Matroska player,
+/// SwiftUI lists for archives and torrents, and TextKit for code, Markdown and tables.
+final class PreviewViewController: NSViewController, QLPreviewingController {
     private static let matroskaExtensions: Set<String> = ["mkv", "mka", "mk3d", "webm"]
 
+    /// Failures show up in Console.app under this subsystem.
+    private static let log = Logger(subsystem: "io.github.yinon-mitin.QuickPeek", category: "preview")
+
     private var playerView: PlayerView?
-    private var loadFinished: CheckedContinuation<Void, Never>?
 
     override var nibName: NSNib.Name? { nil }
 
@@ -31,30 +27,26 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
         playerView?.stop()
     }
 
-    /// Failures show up in Console.app under this subsystem.
-    private static let log = Logger(subsystem: "io.github.yinon-mitin.QuickPeek", category: "preview")
-
     func preparePreviewOfFile(at url: URL) async throws {
         do {
-            try await preparePreview(url)
+            try preparePreview(url)
         } catch {
             Self.log.error("Preview of \(url.pathExtension, privacy: .public) file failed: \(String(describing: error), privacy: .public)")
             throw error
         }
     }
 
-    private func preparePreview(_ url: URL) async throws {
+    private func preparePreview(_ url: URL) throws {
         if Self.matroskaExtensions.contains(url.pathExtension.lowercased()) {
             try showPlayer(for: url)
         } else if StructuredPreview.handles(url) {
             install(try StructuredPreview.view(for: url))
             preferredContentSize = NSSize(width: 760, height: 560)
         } else {
-            try await showDocument(url)
+            install(DocumentViews.view(for: try TextDocument.load(url), services: TextPreview.services))
+            preferredContentSize = NSSize(width: 900, height: 700)
         }
     }
-
-    // MARK: - Video
 
     private func showPlayer(for url: URL) throws {
         let player = try MatroskaPlayer(url: url)
@@ -70,59 +62,15 @@ final class PreviewViewController: NSViewController, QLPreviewingController, WKN
         playerView.start()
     }
 
-    // MARK: - Documents
-
-    private func showDocument(_ url: URL) async throws {
-        let html = try PreviewPipeline.html(for: url, assets: Self.assets)
-        let configuration = WKWebViewConfiguration()
-        configuration.defaultWebpagePreferences.allowsContentJavaScript = true
-        let webView = WKWebView(frame: view.bounds, configuration: configuration)
-        webView.navigationDelegate = self
-        install(webView)
-        preferredContentSize = NSSize(width: 900, height: 700)
-
-        // Return only once the page is drawn, so Quick Look never shows an empty white frame.
-        await withCheckedContinuation { continuation in
-            loadFinished = continuation
-            webView.loadHTMLString(html, baseURL: nil)
-        }
-    }
-
     private func install(_ content: NSView) {
         content.frame = view.bounds
         content.autoresizingMask = [.width, .height]
         view.subviews.forEach { $0.removeFromSuperview() }
         view.addSubview(content)
     }
+}
 
-    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        resumeLoad()
-    }
-
-    func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        resumeLoad()
-    }
-
-    func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        resumeLoad()
-    }
-
-    func webView(
-        _ webView: WKWebView,
-        decidePolicyFor navigationAction: WKNavigationAction,
-        decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
-    ) {
-        // Links in Markdown open in the default browser instead of replacing the preview.
-        if navigationAction.navigationType == .linkActivated, let url = navigationAction.request.url {
-            NSWorkspace.shared.open(url)
-            decisionHandler(.cancel)
-            return
-        }
-        decisionHandler(.allow)
-    }
-
-    private func resumeLoad() {
-        loadFinished?.resume()
-        loadFinished = nil
-    }
+enum TextPreview {
+    /// One highlighter per process: loading highlight.js takes a moment, previews reuse it.
+    static let services = TextServices(vendorDirectory: Bundle.main.resourceURL!.appendingPathComponent("Vendor", isDirectory: true))
 }

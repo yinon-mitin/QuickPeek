@@ -26,8 +26,8 @@ enum ViewSnapshot {
             window.contentView = container
             window.orderFront(nil)
 
-            // Let SwiftUI lay out and the table load its rows before capturing.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            // Let SwiftUI lay out, tables load rows and the background highlighter finish.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 MainActor.assumeIsolated {
                     container.layoutSubtreeIfNeeded()
                     guard let rep = container.bitmapImageRepForCachingDisplay(in: container.bounds) else { Main.fail("snapshot failed") }

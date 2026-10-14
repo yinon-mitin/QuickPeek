@@ -1,12 +1,12 @@
 import AppKit
 import QuickPeekCore
 import QuickPeekMedia
+import QuickPeekText
 
 /// Entry point. Without arguments it opens the settings window; the command-line modes exist
 /// so previews can be checked and debugged without going through Quick Look:
 ///
-///     QuickPeek --render <file>                     print the preview HTML
-///     QuickPeek --snapshot <file> <out.png> [--dark] render the preview in WebKit to a PNG
+///     QuickPeek --snapshot <file> <out.png> [--dark] render a document, archive or torrent preview to a PNG
 ///     QuickPeek --thumbnail <video> <out.png> [size]  decode the thumbnail frame of a video
 ///     QuickPeek --probe <video>                     list tracks and count frames, like ffprobe
 ///     QuickPeek --play <video>                      play in a window with the Quick Look player
@@ -17,18 +17,15 @@ enum Main {
         let arguments = Array(CommandLine.arguments.dropFirst())
 
         switch arguments.first {
-        case "--render" where arguments.count == 2:
-            render(URL(fileURLWithPath: arguments[1]))
-        case "--snapshot" where arguments.count >= 3 && StructuredPreview.handles(URL(fileURLWithPath: arguments[1])):
-            let input = URL(fileURLWithPath: arguments[1])
-            ViewSnapshot.run(output: URL(fileURLWithPath: arguments[2]), dark: arguments.contains("--dark"),
-                             size: NSSize(width: 760, height: 560)) { try StructuredPreview.view(for: input) }
         case "--snapshot" where arguments.count >= 3:
-            Snapshotter.run(
-                input: URL(fileURLWithPath: arguments[1]),
-                output: URL(fileURLWithPath: arguments[2]),
-                dark: arguments.contains("--dark")
-            )
+            let input = URL(fileURLWithPath: arguments[1])
+            let services = TextServices(vendorDirectory: Bundle.main.resourceURL!.appendingPathComponent("Vendor", isDirectory: true))
+            ViewSnapshot.run(output: URL(fileURLWithPath: arguments[2]), dark: arguments.contains("--dark"),
+                             size: StructuredPreview.handles(input) ? NSSize(width: 760, height: 560) : NSSize(width: 900, height: 700)) {
+                StructuredPreview.handles(input)
+                    ? try StructuredPreview.view(for: input)
+                    : DocumentViews.view(for: try TextDocument.load(input), services: services)
+            }
         case "--thumbnail" where arguments.count >= 3:
             thumbnail(
                 URL(fileURLWithPath: arguments[1]),
@@ -43,23 +40,6 @@ enum Main {
             PlayerWindow.run(URL(fileURLWithPath: arguments[1]), snapshotTo: URL(fileURLWithPath: arguments[2]))
         default:
             QuickPeekApp.main()
-        }
-    }
-
-    static var assets: PreviewAssets {
-        let vendor = Bundle.main.resourceURL!.appendingPathComponent("Vendor", isDirectory: true)
-        do {
-            return try PreviewAssets.load(from: vendor)
-        } catch {
-            fail("cannot load assets from \(vendor.path): \(error)")
-        }
-    }
-
-    private static func render(_ input: URL) {
-        do {
-            print(try PreviewPipeline.html(for: input, assets: assets))
-        } catch {
-            fail("\(input.path): \(error)")
         }
     }
 

@@ -5,6 +5,13 @@ let package = Package(
     name: "QuickPeek",
     platforms: [.macOS(.v26)],
     products: [
+        // One dynamic framework for the app and its extensions, so the shared code is
+        // shipped once instead of being linked into every executable.
+        .library(
+            name: "QuickPeekKit",
+            type: .dynamic,
+            targets: ["QuickPeekCore", "QuickPeekMedia", "QuickPeekFormats", "QuickPeekText", "QuickPeekInfo"]
+        ),
         .library(name: "QuickPeekCore", targets: ["QuickPeekCore"]),
         .library(name: "QuickPeekMedia", targets: ["QuickPeekMedia"]),
         .library(name: "QuickPeekFormats", targets: ["QuickPeekFormats"]),

@@ -8,8 +8,8 @@ thumbnailed without ffmpeg.
 QuickPeek uses Apple's own frameworks wherever they exist. Video is decoded by
 VideoToolbox and AudioToolbox (hardware-accelerated where the Mac supports it);
 QuickPeek only adds what macOS lacks, such as a Matroska/WebM demuxer written in
-Swift. The result is a few megabytes instead of the 50–150 MB that bundled-codec
-plugins weigh.
+Swift. The whole app is under 4 MB — the shared code is one framework used by the app
+and its three extensions — instead of the 50–150 MB that bundled-codec plugins weigh.
 
 ## What it previews
 
@@ -28,8 +28,10 @@ WebP, HEIC, ICO and PDF by itself, so QuickPeek leaves those to the system.
 
 ## File details (a MediaInfo replacement)
 
-Right-click any file in Finder and choose **QuickPeek Info** for its technical details;
-choosing a line copies the value, **Copy All Details** copies the whole report. QuickPeek's
+Right-click any file in Finder: the context menu shows its summary
+(for example "3840×2160 · HEVC · 23.976 fps · HDR10 · 1:42:05"), with the full technical
+details in the submenu. Choosing a line copies the value, **Copy All Details** copies the
+whole report. QuickPeek's
 own previews also have an ⓘ button with the same details.
 
 | Files | Details |
@@ -54,7 +56,7 @@ Requires macOS 26 or newer.
 ```sh
 brew install xcodegen
 script/build.sh      # runs the tests, builds build/QuickPeek.app
-script/install.sh    # copies it to /Applications and enables the extension
+script/install.sh    # copies it to /Applications and enables the extensions
 ```
 
 If another Quick Look extension handles the same files (for example Syntax
@@ -62,6 +64,9 @@ Highlight, PreviewYaml, QLC, QLCodec-mkv or Webm Quicklook), macOS picks one of
 them. Turn the others off in **System Settings → General → Login Items &
 Extensions → Quick Look**. The Finder menu is listed there under **Finder**
 (QuickPeek Info).
+
+Local builds are signed ad hoc. For a notarized release, build with a Developer ID and
+the hardened runtime (`ENABLE_HARDENED_RUNTIME=YES`; see `project.yml`).
 
 ## Privacy and security
 

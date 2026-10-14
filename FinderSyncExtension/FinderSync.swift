@@ -2,8 +2,8 @@ import Cocoa
 import FinderSync
 import QuickPeekInfo
 
-/// Adds "QuickPeek Info" to Finder's context menu: the technical details of the selected file,
-/// one line per value. Choosing a line copies its value; "Copy All Details" copies everything.
+/// Adds the selected file's summary to Finder's context menu ("1920×1080 · HEVC · 24 fps · 1:42:05"),
+/// with its technical details in a submenu. Choosing a line copies its value.
 final class FinderSync: FIFinderSync {
     private var values: [String] = []
     private var report = ""
@@ -20,7 +20,8 @@ final class FinderSync: FIFinderSync {
             return nil
         }
         let info = FileInfoReader.read(url, quick: true)
-        let (menu, values) = InfoMenu.build(info, action: #selector(copyValue(_:)), target: self)
+        let (menu, values) = InfoMenu.build(info, action: #selector(copyValue(_:)), target: self,
+                                            appearance: NSApp.effectiveAppearance)
         self.values = values
         report = info.report
         return menu

@@ -64,9 +64,15 @@ final class InfoButton: NSButton {
     init(fileURL: URL) {
         self.fileURL = fileURL
         super.init(frame: NSRect(x: 0, y: 0, width: 28, height: 28))
-        image = NSImage(systemSymbolName: "info.circle", accessibilityDescription: "File details")
+        image = NSImage(systemSymbolName: "info", accessibilityDescription: "File details")?
+            .withSymbolConfiguration(.init(pointSize: 13, weight: .semibold))
         imagePosition = .imageOnly
-        bezelStyle = .circular
+        isBordered = false
+        // White on a translucent dark disc: visible over video, dark mode and light documents alike.
+        contentTintColor = .white
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.black.withAlphaComponent(0.45).cgColor
+        layer?.cornerRadius = 14
         toolTip = "File details"
         target = self
         action = #selector(toggle)

@@ -11,12 +11,19 @@ settings:
     MARKETING_VERSION: 0.1.0
     CURRENT_PROJECT_VERSION: 1
     SWIFT_VERSION: "5.0"
-    # Ad-hoc signing for local builds; release signing is configured in CI.
+    # Ad-hoc signing for local builds. The hardened runtime's library validation only accepts
+    # frameworks signed by the same Team ID, which ad-hoc signatures do not have, so it is
+    # enabled together with a Developer ID for notarized releases:
+    #   xcodebuild ... CODE_SIGN_IDENTITY="Developer ID Application" DEVELOPMENT_TEAM=<team> ENABLE_HARDENED_RUNTIME=YES
+    # The extensions stay sandboxed either way.
     CODE_SIGN_IDENTITY: "-"
     CODE_SIGN_STYLE: Manual
     DEVELOPMENT_TEAM: ""
-    ENABLE_HARDENED_RUNTIME: YES
+    ENABLE_HARDENED_RUNTIME: NO
     DEAD_CODE_STRIPPING: YES
+    # Extensions live in Contents/PlugIns/X.appex/Contents/MacOS and load QuickPeekKit from
+    # the app's Contents/Frameworks.
+    LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks"
 
 packages:
   QuickPeek:
@@ -40,15 +47,8 @@ targets:
       - target: QuickPeekThumbnail
       - target: QuickPeekFinderSync
       - package: QuickPeek
-        product: QuickPeekCore
-      - package: QuickPeek
-        product: QuickPeekMedia
-      - package: QuickPeek
-        product: QuickPeekFormats
-      - package: QuickPeek
-        product: QuickPeekText
-      - package: QuickPeek
-        product: QuickPeekInfo
+        product: QuickPeekKit
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.yinon-mitin.QuickPeek
@@ -97,15 +97,8 @@ targets:
         buildPhase: resources
     dependencies:
       - package: QuickPeek
-        product: QuickPeekCore
-      - package: QuickPeek
-        product: QuickPeekMedia
-      - package: QuickPeek
-        product: QuickPeekFormats
-      - package: QuickPeek
-        product: QuickPeekText
-      - package: QuickPeek
-        product: QuickPeekInfo
+        product: QuickPeekKit
+        embed: false
       - sdk: Quartz.framework
     settings:
       base:
@@ -222,7 +215,8 @@ targets:
       - ThumbnailExtension
     dependencies:
       - package: QuickPeek
-        product: QuickPeekMedia
+        product: QuickPeekKit
+        embed: false
       - sdk: QuickLookThumbnailing.framework
     settings:
       base:
@@ -263,7 +257,8 @@ targets:
       - FinderSyncExtension
     dependencies:
       - package: QuickPeek
-        product: QuickPeekInfo
+        product: QuickPeekKit
+        embed: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.yinon-mitin.QuickPeek.FinderSync

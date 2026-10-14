@@ -4,6 +4,10 @@ import Foundation
 import Testing
 @testable import QuickPeekMedia
 
+/// GitHub's macOS runners are VMs without a hardware video decoder or an audio device, so
+/// presenting frames and reaching the end on the audio clock are only checked on real Macs.
+let onRealMac = ProcessInfo.processInfo.environment["CI"] == nil
+
 @Suite("MatroskaPlayer", .serialized)
 @MainActor
 struct MatroskaPlayerTests {
@@ -35,11 +39,13 @@ struct MatroskaPlayerTests {
         await waitUntil { player.currentTime > 0.4 }
         #expect(player.currentTime > 0.4)
         #expect(player.error == nil)
-        #expect(player.displayedFrame() != nil)
+        if onRealMac {
+            #expect(player.displayedFrame() != nil)
+        }
         player.pause()
     }
 
-    @Test("Stops at the end and reports it")
+    @Test("Stops at the end and reports it", .enabled(if: onRealMac, "needs an audio device and real-time decoding"))
     func ends() async throws {
         let player = try MatroskaPlayer(url: fixtureURL("h264_aac.mkv"))
         player.isMuted = true

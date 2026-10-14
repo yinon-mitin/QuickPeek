@@ -28,6 +28,8 @@ targets:
     platform: macOS
     sources:
       - App
+      # The player UI is shared: the app can play a file in a window (--play) for debugging.
+      - PreviewExtension/PlayerView.swift
       - path: Vendor
         type: folder
         buildPhase: resources
@@ -87,6 +89,8 @@ targets:
     dependencies:
       - package: QuickPeek
         product: QuickPeekCore
+      - package: QuickPeek
+        product: QuickPeekMedia
       - sdk: Quartz.framework
       - sdk: WebKit.framework
     settings:
@@ -158,6 +162,16 @@ targets:
               # Plain text and logs
               - public.plain-text
               - com.apple.log
+              # Matroska/WebM video, including the identifiers video players export for them
+              - org.matroska.mkv
+              - org.matroska.mka
+              - org.webmproject.webm
+              - io.iina.mkv
+              - io.iina.webm
+              - io.mpv.mkv
+              - io.mpv.webm
+              - org.videolan.mkv
+              - org.videolan.webm
     entitlements:
       path: PreviewExtension/QuickPeekPreview.entitlements
       properties:

@@ -9,6 +9,8 @@ import QuickPeekMedia
 ///     QuickPeek --snapshot <file> <out.png> [--dark] render the preview in WebKit to a PNG
 ///     QuickPeek --thumbnail <video> <out.png> [size]  decode the thumbnail frame of a video
 ///     QuickPeek --probe <video>                     list tracks and count frames, like ffprobe
+///     QuickPeek --play <video>                      play in a window with the Quick Look player
+///     QuickPeek --play-snapshot <video> <out.png>   play briefly and save the player as a PNG
 @main
 enum Main {
     static func main() {
@@ -31,6 +33,10 @@ enum Main {
             )
         case "--probe" where arguments.count == 2:
             probe(URL(fileURLWithPath: arguments[1]))
+        case "--play" where arguments.count == 2:
+            PlayerWindow.run(URL(fileURLWithPath: arguments[1]), snapshotTo: nil)
+        case "--play-snapshot" where arguments.count == 3:
+            PlayerWindow.run(URL(fileURLWithPath: arguments[1]), snapshotTo: URL(fileURLWithPath: arguments[2]))
         default:
             QuickPeekApp.main()
         }

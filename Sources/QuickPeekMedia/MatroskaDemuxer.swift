@@ -1,3 +1,4 @@
+import CoreMedia
 import Foundation
 
 public struct MatroskaTrack: Sendable, Equatable {
@@ -90,6 +91,22 @@ public final class MatroskaDemuxer {
         let candidates = cues.filter { videoTrack == nil || $0.trackNumber == videoTrack }
         let usable = candidates.isEmpty ? cues : candidates
         return usable.last { $0.time <= target }?.clusterPosition ?? firstClusterOffset
+    }
+
+    /// Where to resume reading to reach `seconds`, and the time playback actually resumes at
+    /// (the cue's keyframe, at or before the target).
+    public func seekPoint(forSeconds seconds: Double) -> (position: Int64?, seconds: Double) {
+        let target = UInt64(max(0, ticks(fromSeconds: seconds)))
+        let videoTrack = tracks.first { $0.type == .video }?.number
+        let candidates = cues.filter { videoTrack == nil || $0.trackNumber == videoTrack }
+        guard let cue = (candidates.isEmpty ? cues : candidates).last(where: { $0.time <= target }) else {
+            return (firstClusterOffset, 0)
+        }
+        return (cue.clusterPosition, self.seconds(fromTicks: Int64(cue.time)))
+    }
+
+    public func time(fromTicks ticks: Int64) -> CMTime {
+        CMTime(value: ticks * Int64(clamping: timestampScale), timescale: 1_000_000_000)
     }
 
     /// Frames in file order, starting at the first cluster or at a cluster offset from `clusterPosition`.

@@ -124,30 +124,11 @@ enum VideoFormat {
         presentationTime: CMTime,
         isKeyframe: Bool
     ) throws -> CMSampleBuffer {
-        var blockBuffer: CMBlockBuffer?
-        var status = CMBlockBufferCreateWithMemoryBlock(
-            allocator: kCFAllocatorDefault,
-            memoryBlock: nil,
-            blockLength: data.count,
-            blockAllocator: kCFAllocatorDefault,
-            customBlockSource: nil,
-            offsetToData: 0,
-            dataLength: data.count,
-            flags: kCMBlockBufferAssureMemoryNowFlag,
-            blockBufferOut: &blockBuffer
-        )
-        guard status == noErr, let blockBuffer else { throw MediaError.decodeFailed(status) }
-        status = data.withUnsafeBytes { bytes in
-            CMBlockBufferReplaceDataBytes(
-                with: bytes.baseAddress!, blockBuffer: blockBuffer, offsetIntoDestination: 0, dataLength: data.count
-            )
-        }
-        guard status == noErr else { throw MediaError.decodeFailed(status) }
-
+        let blockBuffer = try blockBuffer(data)
         var timing = CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: presentationTime, decodeTimeStamp: .invalid)
         var size = data.count
         var sampleBuffer: CMSampleBuffer?
-        status = CMSampleBufferCreateReady(
+        let status = CMSampleBufferCreateReady(
             allocator: kCFAllocatorDefault,
             dataBuffer: blockBuffer,
             formatDescription: format,
@@ -171,5 +152,29 @@ enum VideoFormat {
             )
         }
         return sampleBuffer
+    }
+
+    /// Copies bytes into a CMBlockBuffer that owns its memory.
+    static func blockBuffer(_ data: Data) throws -> CMBlockBuffer {
+        var blockBuffer: CMBlockBuffer?
+        var status = CMBlockBufferCreateWithMemoryBlock(
+            allocator: kCFAllocatorDefault,
+            memoryBlock: nil,
+            blockLength: data.count,
+            blockAllocator: kCFAllocatorDefault,
+            customBlockSource: nil,
+            offsetToData: 0,
+            dataLength: data.count,
+            flags: kCMBlockBufferAssureMemoryNowFlag,
+            blockBufferOut: &blockBuffer
+        )
+        guard status == noErr, let blockBuffer else { throw MediaError.decodeFailed(status) }
+        status = data.withUnsafeBytes { bytes in
+            CMBlockBufferReplaceDataBytes(
+                with: bytes.baseAddress!, blockBuffer: blockBuffer, offsetIntoDestination: 0, dataLength: data.count
+            )
+        }
+        guard status == noErr else { throw MediaError.decodeFailed(status) }
+        return blockBuffer
     }
 }

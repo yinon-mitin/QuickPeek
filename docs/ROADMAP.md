@@ -1,27 +1,33 @@
 # Roadmap
 
-## 0.1 — code, config, Markdown, tables (done)
+QuickPeek aims to replace QLAppBundle, QLC, QLCodec-mkv, QLMarkdown, QuickLook Video,
+Syntax Highlight and similar single-purpose plugins with one native, lightweight app.
 
-- Syntax-highlighted previews for code and config files, theme follows light/dark mode.
-- Markdown rendering with highlighted code blocks.
-- CSV/TSV as tables with delimiter detection.
-- Size limits, encoding detection, binary detection.
-- `--render` / `--snapshot` debugging modes in the host app.
+Principles: Apple frameworks first (VideoToolbox, AudioToolbox, TextKit, JavaScriptCore);
+no bundled ffmpeg or other large codec libraries; every parser covered by `swift test`.
 
-## 0.2 — notebooks and archives
+## Done
 
-- Jupyter notebooks: Markdown and code cells, text/image outputs (`image/png` as data URIs).
-- Archives: ZIP, TAR, TAR.GZ as a file tree with sizes and dates, without extracting to disk.
+- **0.1** — code, config, Markdown and tables (WKWebView renderer, highlight.js, markdown-it).
+- **0.2** — MKV/WebM: Swift demuxer (resyncs on damaged files; matches ffprobe on the
+  official conformance suite), Finder thumbnails, native player with hardware decoding,
+  A/V sync and keyframe seeking.
 
-## 0.3 — media and thumbnails
+## Next
 
-- Images macOS does not preview well (for example large SVGs) and WebM video through WebKit.
-- Thumbnail extension: Finder icons for code, Markdown and tables, drawn from the same renderer.
-- MKV/AVI need ffmpeg; decide whether that belongs in QuickPeek or stays with QLVideo.
+1. **Native text rendering** — replace the WKWebView renderer with TextKit 2:
+   highlight.js running in JavaScriptCore (no WebKit process), Markdown parsed with
+   cmark-gfm into attributed text with real tables. Faster to open, less memory.
+2. **App bundles** — `.app`, `.ipa`, `.xcarchive`, `.apk`: icon, identifiers, version,
+   entitlements and provisioning profile; icons as Finder thumbnails.
+3. **More containers** — AVI, FLV, MPEG-TS and Ogg demuxers on the same pipeline
+   (codecs macOS can decode only).
+4. **Jupyter notebooks and archives** (ZIP/TAR tree without extracting).
 
 ## Later
 
-- Settings window: theme choice, font size, line numbers, word wrap, size limits.
-- Extension-less files (`Dockerfile` variants, dotfiles) through `public.data`, with content sniffing.
-- Mermaid diagrams and KaTeX math in Markdown.
+- A MediaExtension format reader (macOS 15+) so apps that opt in, such as QuickTime Player,
+  could open MKV/WebM through QuickPeek's demuxer. Needs Developer ID signing.
+- Settings window: themes, font size, line numbers, autoplay and volume.
+- Subtitles (SRT/ASS tracks in MKV) in the player.
 - Developer ID signing, notarization and a Homebrew cask.

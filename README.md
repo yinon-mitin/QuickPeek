@@ -1,11 +1,14 @@
 # QuickPeek
 
-One Quick Look extension for the files developers look at all day: source code,
-configs, Markdown and tables. Select a file in Finder, press Space, and get a
-highlighted, theme-aware preview instead of plain text.
+A free, open-source alternative to a drawer full of small Quick Look utilities.
+One native app previews the files macOS leaves blank: source code, configs,
+Markdown, tables — and MKV/WebM video, played and thumbnailed without ffmpeg.
 
-QuickPeek is free and open source (MIT). It replaces a stack of single-format
-plugins with one app.
+QuickPeek uses Apple's own frameworks wherever they exist. Video is decoded by
+VideoToolbox and AudioToolbox (hardware-accelerated where the Mac supports it);
+QuickPeek only adds what macOS lacks, such as a Matroska/WebM demuxer written in
+Swift. The result is a few megabytes instead of the 50–150 MB that bundled-codec
+plugins weigh.
 
 ## What it previews
 
@@ -15,14 +18,16 @@ plugins with one app.
 | Markdown | `.md`, `.markdown` | GitHub-flavoured rendering with [markdown-it](https://github.com/markdown-it/markdown-it), highlighted code blocks |
 | Tables | CSV, TSV, semicolon- and pipe-separated | Real table with a sticky header; delimiter is detected automatically |
 | Text | `.txt`, `.log`, other plain text | Monospaced, wrapped |
+| Video | `.mkv`, `.webm`, `.mka` | Native player and Finder thumbnails. Video: H.264, HEVC, VP9, AV1 (Macs with an AV1 decoder, M3 and later). Audio: AAC, Opus, FLAC, AC-3, E-AC-3, MP3 |
 
 Previews follow the system light/dark appearance. Files larger than 2 MB are
-shown up to the limit, tables up to 5,000 rows. See the [roadmap](docs/ROADMAP.md)
-for what comes next (Jupyter notebooks, archives, images, video, thumbnails).
+shown up to the limit, tables up to 5,000 rows. Codecs macOS cannot decode
+(for example Vorbis, Theora, WMV) are reported instead of played — QuickPeek
+does not ship ffmpeg. See the [roadmap](docs/ROADMAP.md) for what comes next.
 
 ## Install
 
-Requires macOS 14 or newer.
+Requires macOS 26 or newer.
 
 ```sh
 brew install xcodegen
@@ -31,8 +36,9 @@ script/install.sh    # copies it to /Applications and enables the extension
 ```
 
 If another Quick Look extension handles the same files (for example Syntax
-Highlight or PreviewYaml), macOS picks one of them. Turn the others off in
-**System Settings → General → Login Items & Extensions → Quick Look**.
+Highlight, PreviewYaml, QLC, QLCodec-mkv or Webm Quicklook), macOS picks one of
+them. Turn the others off in **System Settings → General → Login Items &
+Extensions → Quick Look**.
 
 ## Privacy and security
 
@@ -52,10 +58,12 @@ content process does not start in a sandboxed extension without it.
 ## Development
 
 ```
-Sources/QuickPeekCore   file classification, decoding, CSV parsing, HTML rendering
-Tests/QuickPeekCoreTests  swift test
-PreviewExtension        Quick Look extension (WKWebView)
-App                     host app; also a CLI for debugging previews
+Sources/QuickPeekCore    file classification, decoding, CSV parsing, HTML rendering
+Sources/QuickPeekMedia   Matroska/WebM demuxer, CoreMedia bridge, frame extraction, player
+Tests/                   swift test (media tests use tiny fixtures from script/make_fixtures.sh)
+PreviewExtension         Quick Look preview: native player for video, WKWebView for documents
+ThumbnailExtension       Finder thumbnails for video
+App                      host app; also a CLI for debugging previews
 Vendor                  pinned highlight.js and markdown-it
 project.yml             XcodeGen spec for the app and extension
 ```
@@ -64,9 +72,18 @@ Rendering logic lives in `QuickPeekCore` and is covered by `swift test`. To see 
 preview exactly as the extension draws it, without Quick Look:
 
 ```sh
-build/QuickPeek.app/Contents/MacOS/QuickPeek --snapshot file.yaml out.png [--dark]
-build/QuickPeek.app/Contents/MacOS/QuickPeek --render file.yaml > out.html
+QP=build/QuickPeek.app/Contents/MacOS/QuickPeek
+$QP --snapshot file.yaml out.png [--dark]   # document preview as a PNG
+$QP --render file.yaml > out.html           # document preview HTML
+$QP --play movie.mkv                        # the Quick Look player in a window
+$QP --play-snapshot movie.mkv out.png       # play briefly, save the player as a PNG
+$QP --thumbnail movie.mkv out.png [size]    # the Finder thumbnail frame
+$QP --probe movie.mkv                       # tracks and frame counts, like ffprobe
 ```
+
+The demuxer is checked against the official Matroska conformance files
+([ietf-wg-cellar/matroska-test-files](https://github.com/ietf-wg-cellar/matroska-test-files)):
+frame counts match ffprobe on all eight, including the damaged and live-stream ones.
 
 To bump highlight.js or markdown-it, edit the versions in `script/fetch_vendor.sh`
 and run `script/fetch_vendor.sh --update-checksums`.

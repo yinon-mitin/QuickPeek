@@ -93,6 +93,28 @@ public struct AudioFormat {
         return format
     }
 
+    /// One compressed packet as a sample buffer for AVSampleBufferAudioRenderer.
+    func sampleBuffer(_ packet: Data, format: CMAudioFormatDescription, presentationTime: CMTime) throws -> CMSampleBuffer {
+        let blockBuffer = try VideoFormat.blockBuffer(packet)
+        var description = AudioStreamPacketDescription(
+            mStartOffset: 0,
+            mVariableFramesInPacket: UInt32(framesInPacket(packet)),
+            mDataByteSize: UInt32(packet.count)
+        )
+        var sampleBuffer: CMSampleBuffer?
+        let status = CMAudioSampleBufferCreateReadyWithPacketDescriptions(
+            allocator: kCFAllocatorDefault,
+            dataBuffer: blockBuffer,
+            formatDescription: format,
+            sampleCount: 1,
+            presentationTimeStamp: presentationTime,
+            packetDescriptions: &description,
+            sampleBufferOut: &sampleBuffer
+        )
+        guard status == noErr, let sampleBuffer else { throw MediaError.decodeFailed(status) }
+        return sampleBuffer
+    }
+
     // MARK: - Codec configuration
 
     /// Samples at 48 kHz in an Opus packet, from its TOC byte (RFC 6716, section 3.1).

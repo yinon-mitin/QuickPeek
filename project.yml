@@ -3,7 +3,7 @@ name: QuickPeek
 options:
   bundleIdPrefix: io.github.yinon-mitin
   deploymentTarget:
-    macOS: "14.0"
+    macOS: "26.0"
   createIntermediateGroups: true
 
 settings:
@@ -33,8 +33,11 @@ targets:
         buildPhase: resources
     dependencies:
       - target: QuickPeekPreview
+      - target: QuickPeekThumbnail
       - package: QuickPeek
         product: QuickPeekCore
+      - package: QuickPeek
+        product: QuickPeekMedia
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: io.github.yinon-mitin.QuickPeek
@@ -163,3 +166,44 @@ targets:
         # WKWebView's web content process does not start in a sandboxed extension without it.
         # Previews still cannot reach the network: every document carries a CSP of default-src 'none'.
         com.apple.security.network.client: true
+
+  QuickPeekThumbnail:
+    type: app-extension
+    platform: macOS
+    sources:
+      - ThumbnailExtension
+    dependencies:
+      - package: QuickPeek
+        product: QuickPeekMedia
+      - sdk: QuickLookThumbnailing.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.yinon-mitin.QuickPeek.Thumbnail
+        GENERATE_INFOPLIST_FILE: NO
+    info:
+      path: ThumbnailExtension/Info.plist
+      properties:
+        CFBundleDisplayName: QuickPeek Thumbnail
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.quicklook.thumbnail
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ThumbnailProvider
+          NSExtensionAttributes:
+            QLThumbnailMinimumDimension: 0
+            QLSupportedContentTypes:
+              # Matroska/WebM, including the identifiers video players export for them
+              - org.matroska.mkv
+              - org.webmproject.webm
+              - io.iina.mkv
+              - io.iina.webm
+              - io.mpv.mkv
+              - io.mpv.webm
+              - org.videolan.mkv
+              - org.videolan.webm
+    entitlements:
+      path: ThumbnailExtension/QuickPeekThumbnail.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-only: true

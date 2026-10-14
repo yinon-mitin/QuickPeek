@@ -99,6 +99,31 @@ struct MatroskaDemuxerTests {
         #expect(throws: MatroskaError.self) { try MatroskaDemuxer(url: url) }
     }
 
+    private func damaged(_ name: String, overwriting range: Range<Int>) throws -> MatroskaDemuxer {
+        var data = try Data(contentsOf: fixtureURL(name))
+        data.replaceSubrange(range, with: Data(repeating: 0x0A, count: range.count))
+        return try MatroskaDemuxer(source: DataByteSource(data))
+    }
+
+    @Test("Garbage after the segment header is skipped to the next top-level element")
+    func junkAfterSegmentHeader() throws {
+        // h264_aac.mkv: Segment header at 40 (4-byte ID + 8-byte size), first child at 52.
+        let demuxer = try damaged("h264_aac.mkv", overwriting: 52..<68)
+        #expect(demuxer.tracks.count == 2)
+        #expect(try Array(demuxer.frames()).count == 10 + 48)
+    }
+
+    @Test("Damage inside one cluster does not hide the clusters after it")
+    func junkInsideCluster() throws {
+        // h264_aac.mkv has clusters at 674 and 8780; the second starts with the 0.5 s keyframe.
+        let demuxer = try damaged("h264_aac.mkv", overwriting: 4000..<6000)
+        let video = try #require(demuxer.tracks.first { $0.type == .video })
+        let frames = try Array(demuxer.frames()).filter { $0.trackNumber == video.number }
+        let late = frames.filter { demuxer.seconds(fromTicks: $0.timestamp) >= 0.5 }
+        #expect(late.count == 5)
+        #expect(late.contains { $0.isKeyframe })
+    }
+
     @Test("A truncated file still yields the frames before the cut")
     func truncatedFile() throws {
         let data = try Data(contentsOf: fixtureURL("h264_aac.mkv"))

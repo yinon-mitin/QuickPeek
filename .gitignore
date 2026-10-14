@@ -7,3 +7,5 @@ DerivedData/
 App/Info.plist
 PreviewExtension/Info.plist
 PreviewExtension/*.entitlements
+ThumbnailExtension/Info.plist
+ThumbnailExtension/*.entitlements

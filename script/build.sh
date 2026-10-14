@@ -25,4 +25,7 @@ app=build/DerivedData/Build/Products/Release/QuickPeek.app
 [ -d "$app" ] || { echo "Build failed: $app not found" >&2; exit 1; }
 rm -rf build/QuickPeek.app
 ditto "$app" build/QuickPeek.app
+# Xcode registers every build product with LaunchServices; an extension registered from
+# DerivedData would compete with the installed copy, so forget the intermediate one.
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -u "$app" 2>/dev/null || true
 echo "Built build/QuickPeek.app"

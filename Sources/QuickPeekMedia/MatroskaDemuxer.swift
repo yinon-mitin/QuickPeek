@@ -132,7 +132,13 @@ public final class MatroskaDemuxer {
         var seen: Set<UInt32> = []
         reader.offset = segment.dataOffset
         while reader.offset < segmentEnd {
-            guard let element = try? reader.readElementHeader() else { break }
+            let start = reader.offset
+            guard let element = try? reader.readElementHeader(), isPlausible(element, within: segmentEnd) else {
+                // Damaged or padded with garbage: continue at the next top-level element.
+                guard let next = resync(from: start + 1, to: ID.topLevel) else { break }
+                reader.offset = next
+                continue
+            }
             if element.id == ID.cluster {
                 firstClusterOffset = element.offset
                 break
@@ -304,6 +310,68 @@ public final class MatroskaDemuxer {
         }
     }
 
+    // MARK: - Recovery
+
+    /// An element whose declared size fits in its parent. Garbage bytes rarely decode to one.
+    func isPlausible(_ element: EBMLElementHeader, within end: Int64) -> Bool {
+        switch element.size {
+        case .unknown:
+            return element.id == ID.cluster
+        case .known(let size):
+            // The last cluster of a truncated file may claim more bytes than remain.
+            let limit = element.id == ID.cluster ? Int64.max : end
+            return size <= UInt64(Int64.max) && element.dataOffset + Int64(size) <= limit
+        }
+    }
+
+    /// ID bytes also occur inside elements (a SeekHead lists the IDs it points to), so a candidate
+    /// counts only if another top-level element — or the end of the segment — follows it.
+    private func isResyncPoint(_ offset: Int64, limit: Int64) -> Bool {
+        var reader = EBMLReader(source: source, offset: offset)
+        guard let header = try? reader.readElementHeader(), isPlausible(header, within: limit) else { return false }
+
+        guard case .known(let size) = header.size else {
+            // Unknown-size cluster (live streams): its first child must be the cluster timestamp.
+            return (try? reader.readElementHeader().id) == ID.clusterTimestamp
+        }
+        let end = header.dataOffset + Int64(size)
+        if end >= limit { return true }
+        var next = EBMLReader(source: source, offset: end)
+        guard let following = try? next.readElementHeader() else { return false }
+        return (ID.topLevel.contains(following.id) || following.id == ID.void) && isPlausible(following, within: limit)
+    }
+
+    /// Scans forward for the next element with one of `ids` that has a plausible header.
+    func resync(from offset: Int64, to ids: Set<UInt32>) -> Int64? {
+        let limit = segmentEnd > 0 ? segmentEnd : source.size
+        let chunkSize = 256 * 1024
+        let firstBytes = Set(ids.map { UInt8($0 >> 24) })
+        var position = max(0, offset)
+
+        while position + 4 <= limit {
+            let count = Int(min(Int64(chunkSize), limit - position))
+            guard let chunk = try? source.read(at: position, count: count) else { return nil }
+            var index = 0
+            while index + 4 <= chunk.count {
+                if firstBytes.contains(chunk[index]) {
+                    let id = UInt32(chunk[index]) << 24 | UInt32(chunk[index + 1]) << 16
+                        | UInt32(chunk[index + 2]) << 8 | UInt32(chunk[index + 3])
+                    if ids.contains(id) {
+                        let candidate = position + Int64(index)
+                        if isResyncPoint(candidate, limit: limit) {
+                            return candidate
+                        }
+                    }
+                }
+                index += 1
+            }
+            guard position + Int64(count) < limit else { return nil }
+            // Overlap by three bytes so an ID split across chunks is still found.
+            position += Int64(count - 3)
+        }
+        return nil
+    }
+
     // MARK: - Element IDs
 
     enum ID {
@@ -354,6 +422,7 @@ public final class MatroskaDemuxer {
         static let blockGroup: UInt32 = 0xA0
         static let block: UInt32 = 0xA1
         static let referenceBlock: UInt32 = 0xFB
+        static let void: UInt32 = 0xEC
 
         /// Level-1 elements: inside a cluster of unknown size, one of these ends the cluster.
         static let topLevel: Set<UInt32> = [cluster, cues, seekHead, info, tracks, 0x1254_C367, 0x1043_A770, 0x1941_A469]
@@ -393,13 +462,24 @@ public struct MatroskaFrameSequence: Sequence {
 
         public func next() -> MatroskaFrame? {
             while pending.isEmpty && !finished {
+                let start = reader.offset
                 do {
                     try advance()
                 } catch {
-                    finished = true
+                    recover(from: start)
                 }
             }
             return pending.isEmpty ? nil : pending.removeFirst()
+        }
+
+        /// Skips damaged bytes by jumping to the next cluster; the end of the file ends the sequence.
+        private func recover(from offset: Int64) {
+            clusterEnd = nil
+            if let next = demuxer.resync(from: offset + 1, to: [MatroskaDemuxer.ID.cluster]) {
+                reader.offset = next
+            } else {
+                finished = true
+            }
         }
 
         private func advance() throws {
@@ -414,6 +494,9 @@ public struct MatroskaFrameSequence: Sequence {
             if let end = clusterEnd, element.offset >= end || ID.topLevel.contains(element.id) {
                 clusterEnd = nil
             }
+            guard demuxer.isPlausible(element, within: clusterEnd ?? limit) else {
+                throw MatroskaError.invalidBlock
+            }
 
             switch element.id {
             case ID.cluster:
@@ -423,15 +506,14 @@ public struct MatroskaFrameSequence: Sequence {
             case ID.clusterTimestamp where clusterEnd != nil:
                 clusterTimestamp = Int64(clamping: EBMLReader.unsigned(try reader.readData(element)))
             case ID.simpleBlock where clusterEnd != nil:
-                let block = try MatroskaBlock.parse(try reader.readData(element))
-                emit(block, isKeyframe: block.isKeyframe)
+                // A corrupt block costs only itself: its size was plausible, so the next one is intact.
+                if let block = try? MatroskaBlock.parse(try reader.readData(element)) {
+                    emit(block, isKeyframe: block.isKeyframe)
+                }
             case ID.blockGroup where clusterEnd != nil:
                 try readBlockGroup(element)
             default:
-                guard case .known = element.size else {
-                    finished = true
-                    return
-                }
+                guard case .known = element.size else { throw MatroskaError.invalidBlock }
                 reader.offset = element.end(limit: limit)
             }
         }
@@ -451,8 +533,7 @@ public struct MatroskaFrameSequence: Sequence {
                 child.offset = element.end(limit: end)
             }
             reader.offset = end
-            if let blockData {
-                let block = try MatroskaBlock.parse(blockData)
+            if let blockData, let block = try? MatroskaBlock.parse(blockData) {
                 emit(block, isKeyframe: !hasReference)
             }
         }

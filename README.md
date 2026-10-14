@@ -69,7 +69,7 @@ Tests/                   swift test (media tests use tiny fixtures from script/m
 PreviewExtension         Quick Look preview: player, archive/torrent lists, document views
 ThumbnailExtension       Finder thumbnails for video
 App                      host app; also a CLI for debugging previews
-Vendor                  pinned highlight.js and markdown-it
+Vendor                   pinned highlight.js and grammars
 project.yml             XcodeGen spec for the app and extension
 ```
 

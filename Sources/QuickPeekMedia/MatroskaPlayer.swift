@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreMedia
 import Foundation
+import VideoToolbox
 
 /// Plays Matroska/WebM without AVPlayer (which cannot open these containers): our demuxer feeds
 /// compressed samples to AVSampleBufferDisplayLayer and AVSampleBufferAudioRenderer, which decode

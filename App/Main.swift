@@ -34,7 +34,7 @@ enum Main {
             ViewSnapshot.run(output: URL(fileURLWithPath: arguments[2]), dark: arguments.contains("--dark"),
                              size: StructuredPreview.handles(input) ? StructuredPreview.preferredSize(for: input) : NSSize(width: 900, height: 700)) {
                 StructuredPreview.handles(input)
-                    ? try StructuredPreview.view(for: input)
+                    ? try StructuredPreview.view(for: input, services: services)
                     : DocumentViews.view(for: try TextDocument.load(input), services: services)
             }
         case "--thumbnail" where arguments.count >= 3:

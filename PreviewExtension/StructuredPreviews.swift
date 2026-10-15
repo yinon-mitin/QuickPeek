@@ -1,6 +1,7 @@
 import AppKit
 import QuickPeekFormats
 import QuickPeekInfo
+import QuickPeekText
 import SwiftUI
 
 /// Native previews for files whose content is a list: archives and torrents.
@@ -16,14 +17,16 @@ enum StructuredPreview {
             || SQLitePreview.extensions.contains(ext)
     }
 
-    /// A database (two panes) gets a wider window, an empty folder a small one.
+    /// Two-pane previews (a database, an archive with a file preview) get a wider window, an
+    /// empty folder a small one.
     static func preferredSize(for url: URL) -> NSSize {
+        let ext = url.pathExtension.lowercased()
         if isFolder(url) {
             let visible = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
             return visible?.isEmpty == true ? NSSize(width: 480, height: 110) : NSSize(width: 760, height: 560)
         }
-        return SQLitePreview.extensions.contains(url.pathExtension.lowercased())
-            ? NSSize(width: 1000, height: 620) : NSSize(width: 760, height: 560)
+        let twoPanes = SQLitePreview.extensions.contains(ext) || archiveExtensions.contains(ext)
+        return twoPanes ? NSSize(width: 1000, height: 620) : NSSize(width: 760, height: 560)
     }
 
     /// A plain folder, not a package such as an app or an Xcode archive.
@@ -34,7 +37,7 @@ enum StructuredPreview {
 
     /// Parses the file and returns the view to host, or throws if it cannot be read at all.
     @MainActor
-    static func view(for url: URL) throws -> NSView {
+    static func view(for url: URL, services: TextServices) throws -> NSView {
         if isFolder(url) {
             let listing = try FolderListing.read(url: url)
             return NSHostingView(rootView: FolderPreview(name: FileManager.default.displayName(atPath: url.path), listing: listing))
@@ -53,7 +56,8 @@ enum StructuredPreview {
         }
         let listing = try ArchiveListing.read(url: url)
         let (folder, nodes) = FileTree.openingSingleFolder(FileTree.build(listing))
-        return NSHostingView(rootView: ArchivePreview(fileName: url.lastPathComponent, listing: listing, tree: nodes, folder: folder))
+        return NSHostingView(rootView: ArchivePreview(fileName: url.lastPathComponent, archive: url, listing: listing,
+                                                      tree: nodes, folder: folder, services: services))
     }
 }
 
@@ -61,10 +65,42 @@ enum StructuredPreview {
 
 struct ArchivePreview: View {
     let fileName: String
+    let archive: URL
     let listing: ArchiveListing
     let tree: [FileTreeNode]
     /// The single top-level folder whose contents are shown, if there was one.
     var folder: String?
+    let services: TextServices
+    private let nodes: [String: FileTreeNode]
+    private let entries: [String: ArchiveEntry]
+    @State private var selection: String?
+
+    init(fileName: String, archive: URL, listing: ArchiveListing, tree: [FileTreeNode], folder: String?, services: TextServices) {
+        self.fileName = fileName
+        self.archive = archive
+        self.listing = listing
+        self.tree = tree
+        self.folder = folder
+        self.services = services
+        var nodes: [String: FileTreeNode] = [:]
+        func add(_ level: [FileTreeNode]) {
+            for node in level {
+                nodes[node.id] = node
+                add(node.children ?? [])
+            }
+        }
+        add(tree)
+        self.nodes = nodes
+        entries = Dictionary(listing.entries.map { (FileTree.id(forPath: $0.path), $0) }, uniquingKeysWith: { first, _ in first })
+        _selection = State(initialValue: Self.firstSelection(tree))
+    }
+
+    /// A lone file (a .gz) or a README at the top is shown right away, as on GitHub.
+    private static func firstSelection(_ tree: [FileTreeNode]) -> String? {
+        if tree.count == 1, let only = tree.first, !only.isDirectory { return only.id }
+        let readmes = ["readme.md", "readme", "readme.txt", "readme.markdown"]
+        return tree.first { !$0.isDirectory && readmes.contains($0.name.lowercased()) }?.id
+    }
 
     private var summary: String {
         var parts = [listing.compression.map { "\(listing.format) · \($0)" } ?? listing.format]
@@ -95,7 +131,13 @@ struct ArchivePreview: View {
             if tree.isEmpty {
                 Spacer()
             } else {
-                FileTreeTable(nodes: tree, showsDates: true)
+                HSplitView {
+                    FileTreeTable(nodes: tree, showsDates: true, selection: $selection)
+                        .frame(minWidth: 400, idealWidth: 520)
+                    ArchiveEntryPane(node: selection.flatMap { nodes[$0] }, entry: selection.flatMap { entries[$0] },
+                                     archive: archive, services: services)
+                        .frame(minWidth: 300, idealWidth: 480, maxWidth: .infinity)
+                }
             }
         }
     }
@@ -249,12 +291,16 @@ struct Banner: View {
 struct FileTreeTable: View {
     let nodes: [FileTreeNode]
     let showsDates: Bool
+    /// Rows are selectable only where a selection shows something (an archive's file preview);
+    /// elsewhere a click must not highlight a row that leads nowhere.
+    var selection: Binding<String?>?
     @State private var expanded: Set<String>
     private let levels: [[String]]
 
-    init(nodes: [FileTreeNode], showsDates: Bool) {
+    init(nodes: [FileTreeNode], showsDates: Bool, selection: Binding<String?>? = nil) {
         self.nodes = nodes
         self.showsDates = showsDates
+        self.selection = selection
         // The outline opens a folder only after its parent's rows are loaded, so the top level
         // opens with the table and each deeper level a moment later (see `body`).
         let opened = FileTree.initiallyExpanded(nodes)
@@ -263,7 +309,13 @@ struct FileTreeTable: View {
     }
 
     var body: some View {
-        Table(of: FileTreeNode.self) { columns } rows: { FileTreeRows(nodes: nodes, expanded: $expanded) }
+        Group {
+            if let selection {
+                Table(of: FileTreeNode.self, selection: selection) { columns } rows: { FileTreeRows(nodes: nodes, expanded: $expanded) }
+            } else {
+                Table(of: FileTreeNode.self) { columns } rows: { FileTreeRows(nodes: nodes, expanded: $expanded) }
+            }
+        }
         .tableStyle(.inset(alternatesRowBackgrounds: true))
         .task {
             for level in levels.dropFirst() {

@@ -35,26 +35,39 @@ public struct ArchiveListing: Sendable {
     }
 
     public static func read(url: URL, maxEntries: Int = 20_000, timeLimit: TimeInterval = 3) throws -> ArchiveListing {
-        // A lone .gz/.bz2/.xz holds one compressed file, not an archive. Format detection would
-        // guess (libarchive takes plain text for an mtree spec), so read it as a raw stream.
-        let isSingleStream = ["gz", "bz2", "xz", "lzma", "z"].contains(url.pathExtension.lowercased())
+        try list(url: url, raw: isSingleStream(url), maxEntries: maxEntries, timeLimit: timeLimit)
+    }
+
+    /// A lone .gz/.bz2/.xz holds one compressed file, not an archive. Format detection would
+    /// guess (libarchive takes plain text for an mtree spec), so it is read as a raw stream.
+    static func isSingleStream(_ url: URL) -> Bool {
+        ["gz", "bz2", "xz", "lzma", "z"].contains(url.pathExtension.lowercased())
             && url.deletingPathExtension().pathExtension.lowercased() != "tar"
-        return try list(url: url, raw: isSingleStream, maxEntries: maxEntries, timeLimit: timeLimit)
     }
 
     /// The contents of one entry (for example `docProps/core.xml` in a .docx), up to `maxBytes`.
-    public static func data(ofEntry path: String, in url: URL, maxBytes: Int = 4 * 1024 * 1024) throws -> Data? {
+    /// In a lone .gz or .xz the one decompressed file is the entry, whatever `path` says.
+    /// Gives up with `nil` after `timeLimit`: reaching the end of a big .tar.gz means
+    /// decompressing everything before it.
+    public static func data(ofEntry path: String, in url: URL, maxBytes: Int = 4 * 1024 * 1024,
+                            timeLimit: TimeInterval? = nil) throws -> Data? {
+        let raw = isSingleStream(url)
         guard let archive = archive_read_new() else { throw ArchiveError.unrecognized("libarchive unavailable") }
         defer { archive_read_free(archive) }
         archive_read_support_filter_all(archive)
-        archive_read_support_format_all(archive)
+        if raw {
+            archive_read_support_format_raw(archive)
+        } else {
+            archive_read_support_format_all(archive)
+        }
         guard archive_read_open_filename(archive, url.path, 64 * 1024) == ARCHIVE_OK else {
             throw ArchiveError.unrecognized(errorMessage(archive))
         }
+        let deadline = timeLimit.map { Date().addingTimeInterval($0) } ?? .distantFuture
         var entry: OpaquePointer?
-        while archive_read_next_header(archive, &entry) >= ARCHIVE_WARN, let current = entry {
+        while Date() < deadline, archive_read_next_header(archive, &entry) >= ARCHIVE_WARN, let current = entry {
             let name = string(archive_entry_pathname_utf8(current)) ?? string(archive_entry_pathname(current))
-            guard name == path else {
+            guard raw || name == path else {
                 archive_read_data_skip(archive)
                 continue
             }

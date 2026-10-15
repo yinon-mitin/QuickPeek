@@ -41,7 +41,7 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
         if Self.matroskaExtensions.contains(url.pathExtension.lowercased()) {
             try showPlayer(for: url)
         } else if StructuredPreview.handles(url) {
-            install(try StructuredPreview.view(for: url))
+            install(try StructuredPreview.view(for: url, services: TextPreview.services))
             preferredContentSize = StructuredPreview.preferredSize(for: url)
         } else {
             install(DocumentViews.view(for: try TextDocument.load(url), services: TextPreview.services))

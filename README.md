@@ -29,7 +29,7 @@ Free and open source, under 4 MB, no ffmpeg, no web views.</p>
 | Files | What you see |
 |-------|--------------|
 | **Video** — MKV, WebM, MKA | A native player with hardware decoding (H.264, HEVC, VP9, AV1\*; AAC, Opus, FLAC, AC-3, E-AC-3, MP3) and Finder thumbnails |
-| **Archives** — ZIP, RAR, 7z, TAR (gz, bz2, xz), ISO, CPIO, XAR, CAB, LHA | The file tree with sizes and dates, folders already open, without extracting anything |
+| **Archives** — ZIP, RAR, 7z, TAR (gz, bz2, xz), ISO, CPIO, XAR, CAB, LHA | The file tree with sizes and dates, folders already open; select a file to see it (text, code, Markdown, images, PDF), without extracting anything |
 | **Folders** | Everything inside, as a tree with sizes and dates |
 | **SQLite databases** — `.sqlite`, `.db` | Tables and views with row counts, and the first rows of each; opened read-only |
 | **Code and config** — YAML, JSON, TOML, Swift, Python, Go, Rust, Shell, Dockerfile, ~50 more | Syntax highlighting in light and dark mode |

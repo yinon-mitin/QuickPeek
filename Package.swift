@@ -35,7 +35,7 @@ let package = Package(
         ),
         .target(
             name: "QuickPeekFormats",
-            dependencies: ["CArchive"],
+            dependencies: ["CArchive", "QuickPeekCore"],
             path: "Sources/QuickPeekFormats"
         ),
         .target(

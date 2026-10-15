@@ -16,13 +16,17 @@ public struct TextDocument: Sendable {
     public static func load(_ url: URL, maxBytes: Int = defaultMaxBytes) throws -> TextDocument {
         let handle = try FileHandle(forReadingFrom: url)
         defer { try? handle.close() }
-        let data = try handle.read(upToCount: maxBytes + 1) ?? Data()
-        let isTruncated = data.count > maxBytes
+        return try decode(handle.read(upToCount: maxBytes + 1) ?? Data(), fileName: url.lastPathComponent, maxBytes: maxBytes)
+    }
 
+    /// Text already in memory, such as a file read from inside an archive. More than `maxBytes`
+    /// of `data` means the source was longer, and the document is marked truncated.
+    public static func decode(_ data: Data, fileName: String, maxBytes: Int = defaultMaxBytes) throws -> TextDocument {
+        let isTruncated = data.count > maxBytes
         guard let text = TextDecoder.decode(isTruncated ? data.prefix(maxBytes) : data, truncated: isTruncated) else {
             throw TextDocumentError.binaryContent
         }
-        let kind = FileClassifier.classify(fileName: url.lastPathComponent, prefix: String(text.prefix(256)))
+        let kind = FileClassifier.classify(fileName: fileName, prefix: String(text.prefix(256)))
         return TextDocument(text: text, kind: kind, isTruncated: isTruncated)
     }
 }

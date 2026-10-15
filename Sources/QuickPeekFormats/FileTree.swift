@@ -11,13 +11,13 @@ public struct FileTreeItem: Sendable {
 
     public init(path: String, isDirectory: Bool, size: Int64?, modified: Date? = nil,
                 isEncrypted: Bool = false, linkTarget: String? = nil) {
-        self.init(components: path.split(separator: "/").map(String.init), isDirectory: isDirectory, size: size,
+        self.init(components: FileTree.components(path), isDirectory: isDirectory, size: size,
                   modified: modified, isEncrypted: isEncrypted, linkTarget: linkTarget)
     }
 
     public init(components: [String], isDirectory: Bool, size: Int64?, modified: Date? = nil,
                 isEncrypted: Bool = false, linkTarget: String? = nil) {
-        self.components = components.filter { !$0.isEmpty && $0 != "." }
+        self.components = components.filter { !$0.isEmpty && $0 != "." } // torrents give components directly
         self.isDirectory = isDirectory
         self.size = size
         self.modified = modified
@@ -43,6 +43,15 @@ public struct FileTreeNode: Identifiable, Sendable, Equatable {
 }
 
 public enum FileTree {
+    /// The id a path from an archive gets in the tree: `./docs//a.txt` becomes `docs/a.txt`.
+    public static func id(forPath path: String) -> String {
+        components(path).joined(separator: "/")
+    }
+
+    static func components(_ path: String) -> [String] {
+        path.split(separator: "/").map(String.init).filter { !$0.isEmpty && $0 != "." }
+    }
+
     public static func build(_ items: [FileTreeItem]) -> [FileTreeNode] {
         let root = Builder(name: "", path: "")
         for item in items where !item.components.isEmpty {

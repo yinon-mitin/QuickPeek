@@ -30,6 +30,15 @@ struct TextDocumentTests {
         #expect(document.text.utf8.count <= 100)
     }
 
+    @Test("Text in memory is decoded and classified by the name it came with")
+    func decodesData() throws {
+        let document = try TextDocument.decode(Data("# Title\n".utf8), fileName: "README.md")
+        #expect(document.kind == .markdown)
+        #expect(!document.isTruncated)
+        #expect(try TextDocument.decode(Data(repeating: 0x61, count: 101), fileName: "a.txt", maxBytes: 100).isTruncated)
+        #expect(throws: TextDocumentError.binaryContent) { try TextDocument.decode(Data([0, 1, 2, 0, 0xFF]), fileName: "x") }
+    }
+
     @Test("Shebang scripts without an extension are recognised")
     func shebang() throws {
         let url = try temporaryFile(named: "deploy", contents: Data("#!/usr/bin/env python3\nprint(1)\n".utf8))

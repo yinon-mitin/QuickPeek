@@ -41,6 +41,7 @@ targets:
       - PreviewExtension/InfoPanel.swift
       - PreviewExtension/AppPackagePreview.swift
       - PreviewExtension/SQLitePreview.swift
+      - PreviewExtension/ArchiveEntryPane.swift
       - path: Vendor
         type: folder
         buildPhase: resources

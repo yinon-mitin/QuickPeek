@@ -7,8 +7,7 @@ public enum InfoMenu {
     public static let copyAllTag = -1
     static let maxTitleLength = 70
 
-    public static func build(_ info: FileInfo, action: Selector, target: AnyObject?,
-                             appearance: NSAppearance) -> (menu: NSMenu, values: [String]) {
+    public static func build(_ info: FileInfo, action: Selector, target: AnyObject?) -> (menu: NSMenu, values: [String]) {
         var values = [info.summary]
         func item(_ title: String, tag: Int) -> NSMenuItem {
             let item = NSMenuItem(title: shortened(title), action: action, keyEquivalent: "")
@@ -22,7 +21,7 @@ public enum InfoMenu {
             if !submenu.items.isEmpty { submenu.addItem(.separator()) }
             let header = NSMenuItem(title: section.title, action: nil, keyEquivalent: "")
             header.isEnabled = false
-            header.image = icon(section.symbol, appearance: appearance)
+            header.image = icon(section.symbol)
             submenu.addItem(header)
             for entry in section.items {
                 values.append(entry.value)
@@ -31,14 +30,14 @@ public enum InfoMenu {
         }
         if !submenu.items.isEmpty { submenu.addItem(.separator()) }
         let copySummary = item("Copy Summary", tag: 0)
-        copySummary.image = icon("text.quote", appearance: appearance)
+        copySummary.image = icon("text.quote")
         submenu.addItem(copySummary)
         let copyAll = item("Copy All Details", tag: copyAllTag)
-        copyAll.image = icon("doc.on.doc", appearance: appearance)
+        copyAll.image = icon("doc.on.doc")
         submenu.addItem(copyAll)
 
         let root = NSMenuItem(title: info.summary.isEmpty ? "QuickPeek Info" : shortened(info.summary), action: nil, keyEquivalent: "")
-        root.image = icon("info.circle", appearance: appearance)
+        root.image = icon("info.circle")
         root.submenu = submenu
         let menu = NSMenu(title: "")
         menu.addItem(root)
@@ -49,14 +48,12 @@ public enum InfoMenu {
         title.count > maxTitleLength ? String(title.prefix(maxTitleLength - 1)) + "…" : title
     }
 
-    /// An SF Symbol rasterised in the menu's text colour. Finder loses the template flag of
-    /// symbol images, which then render black — invisible on a dark menu.
-    static func icon(_ symbol: String, appearance: NSAppearance) -> NSImage? {
+    /// An SF Symbol rasterised into a template bitmap. Finder rebuilds extension menus in its
+    /// own process and SF Symbols' vector images do not survive the trip; a template bitmap does,
+    /// and the menu tints it like the text — including white on the selection highlight.
+    static func icon(_ symbol: String) -> NSImage? {
         guard let symbolImage = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 13, weight: .regular)) else { return nil }
-        let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
-        let color = isDark ? NSColor(white: 0.92, alpha: 1) : NSColor(white: 0.1, alpha: 1)
-
         let size = symbolImage.size
         let scale: CGFloat = 2
         guard let bitmap = NSBitmapImageRep(
@@ -69,13 +66,13 @@ public enum InfoMenu {
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
         let rect = NSRect(origin: .zero, size: size)
         symbolImage.draw(in: rect)
-        color.set()
+        NSColor.black.set()
         rect.fill(using: .sourceAtop)
         NSGraphicsContext.restoreGraphicsState()
 
         let image = NSImage(size: size)
         image.addRepresentation(bitmap)
-        image.isTemplate = false
+        image.isTemplate = true
         return image
     }
 }

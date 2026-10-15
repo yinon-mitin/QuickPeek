@@ -37,6 +37,7 @@ no bundled ffmpeg or other large codec libraries; every parser covered by `swift
 
 ## Later
 
+- App icon for QuickPeek (the host app still uses the generic icon).
 - A MediaExtension format reader (macOS 15+) so apps that opt in, such as QuickTime Player,
   could open MKV/WebM through QuickPeek's demuxer. Needs Developer ID signing.
 - Settings window: themes, font size, line numbers, autoplay and volume.

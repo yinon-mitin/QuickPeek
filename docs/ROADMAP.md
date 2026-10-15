@@ -29,13 +29,24 @@ extensions are switched on and off in System Settings like any other.
   against androguard), `.xcarchive`; icons as Finder thumbnails; shared code in one
   framework (app under 4 MB).
 
+- **Unreleased** — folders preview as a file tree; archive and torrent trees open with their
+  folders expanded.
+
 ## Next
 
-1. **More containers** — AVI, FLV, MPEG-TS and Ogg demuxers on the same pipeline
-   (codecs macOS can decode only).
-2. **Jupyter notebooks.**
-3. **Archive thumbnails and peeking inside** — preview a file inside an archive without
-   extracting it to disk.
+1. **Peeking inside archives** — preview a file inside an archive without extracting it
+   to disk; archive thumbnails.
+2. **SQLite databases** — tables, columns, row counts and the first rows, through the
+   system libsqlite3.
+3. **Jupyter notebooks** — cells, Markdown and outputs instead of the raw JSON shown now.
+
+## Not planned
+
+- **More video containers.** macOS already plays MPEG-TS, M2TS and MTS (H.264, MPEG-2;
+  AAC, AC-3, E-AC-3) and Ogg audio. Most AVI files are Xvid/DivX, which VideoToolbox
+  cannot decode, so a demuxer would mostly report an unsupported codec; FLV left with
+  Flash. A working MPEG-TS demuxer is kept on the `shelved/mpeg-ts` branch
+  in case HEVC in TS, the one case macOS misses, turns out to matter.
 
 ## Later
 

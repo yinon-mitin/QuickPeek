@@ -101,12 +101,8 @@ public protocol MediaContainer: AnyObject {
 
 public enum MediaContainers {
     /// File extensions QuickPeek plays and thumbnails.
-    public static let extensions: Set<String> = [
-        "mkv", "mka", "mk3d", "webm",
-        "ts", "mts", "m2ts", "m2t", "tod", "mod",
-        "avi", "divx",
-        "flv",
-    ]
+    /// Other containers (MP4, MOV, MPEG-TS, Ogg audio) are left to AVFoundation, which reads them itself.
+    public static let extensions: Set<String> = ["mkv", "mka", "mk3d", "webm"]
 
     public static func handles(_ url: URL) -> Bool {
         extensions.contains(url.pathExtension.lowercased())
@@ -119,7 +115,6 @@ public enum MediaContainers {
         if head.starts(with: [0x1A, 0x45, 0xDF, 0xA3]) {
             return try MatroskaDemuxer(source: source)
         }
-        // CONTAINERS
         throw MediaError.unsupportedCodec(url.pathExtension.uppercased())
     }
 }

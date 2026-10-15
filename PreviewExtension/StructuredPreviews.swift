@@ -13,15 +13,17 @@ enum StructuredPreview {
     static func handles(_ url: URL) -> Bool {
         let ext = url.pathExtension.lowercased()
         return isFolder(url) || ext == "torrent" || archiveExtensions.contains(ext) || AppPackagePreview.extensions.contains(ext)
+            || SQLitePreview.extensions.contains(ext)
     }
 
-    /// An empty folder gets a small window.
+    /// A database (two panes) gets a wider window, an empty folder a small one.
     static func preferredSize(for url: URL) -> NSSize {
         if isFolder(url) {
             let visible = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
             return visible?.isEmpty == true ? NSSize(width: 480, height: 110) : NSSize(width: 760, height: 560)
         }
-        return NSSize(width: 760, height: 560)
+        return SQLitePreview.extensions.contains(url.pathExtension.lowercased())
+            ? NSSize(width: 1000, height: 620) : NSSize(width: 760, height: 560)
     }
 
     /// A plain folder, not a package such as an app or an Xcode archive.
@@ -36,6 +38,10 @@ enum StructuredPreview {
         if isFolder(url) {
             let listing = try FolderListing.read(url: url)
             return NSHostingView(rootView: FolderPreview(name: FileManager.default.displayName(atPath: url.path), listing: listing))
+        }
+        if SQLitePreview.extensions.contains(url.pathExtension.lowercased()) {
+            let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap { $0 }.map(Int64.init) ?? 0
+            return NSHostingView(rootView: SQLitePreview(fileName: url.lastPathComponent, fileSize: size, database: try SQLiteDatabase(url: url)))
         }
         if AppPackagePreview.extensions.contains(url.pathExtension.lowercased()) {
             let package = try AppPackage.read(url: url)

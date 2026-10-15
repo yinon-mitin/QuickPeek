@@ -40,6 +40,7 @@ targets:
       - PreviewExtension/StructuredPreviews.swift
       - PreviewExtension/InfoPanel.swift
       - PreviewExtension/AppPackagePreview.swift
+      - PreviewExtension/SQLitePreview.swift
       - path: Vendor
         type: folder
         buildPhase: resources
@@ -91,6 +92,11 @@ targets:
             UTTypeConformsTo: [public.source-code, public.plain-text]
             UTTypeTagSpecification:
               public.filename-extension: [tf, tfvars, hcl]
+          - UTTypeIdentifier: org.sqlite.sqlite3
+            UTTypeDescription: SQLite Database
+            UTTypeConformsTo: [public.database, public.data]
+            UTTypeTagSpecification:
+              public.filename-extension: [sqlite, sqlite3, db, db3, sqlitedb]
     # The host app is not sandboxed: its --render/--snapshot modes read files given on the command line.
     # Only the Quick Look extension, which renders untrusted files, has to run in the sandbox.
 
@@ -213,6 +219,8 @@ targets:
               - com.apple.xcode.archive
               # Folders list their contents (macOS shows only an icon)
               - public.folder
+              # SQLite databases (the type is declared by the app)
+              - org.sqlite.sqlite3
     entitlements:
       path: PreviewExtension/QuickPeekPreview.entitlements
       properties:

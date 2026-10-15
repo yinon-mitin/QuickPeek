@@ -30,15 +30,14 @@ extensions are switched on and off in System Settings like any other.
   framework (app under 4 MB).
 
 - **Unreleased** — folders preview as a file tree; archive and torrent trees open with their
-  folders expanded.
+  folders expanded. SQLite databases: tables and views with row counts and the first rows,
+  through the system libsqlite3, read-only.
 
 ## Next
 
 1. **Peeking inside archives** — preview a file inside an archive without extracting it
    to disk; archive thumbnails.
-2. **SQLite databases** — tables, columns, row counts and the first rows, through the
-   system libsqlite3.
-3. **Jupyter notebooks** — cells, Markdown and outputs instead of the raw JSON shown now.
+2. **Jupyter notebooks** — cells, Markdown and outputs instead of the raw JSON shown now.
 
 ## Not planned
 

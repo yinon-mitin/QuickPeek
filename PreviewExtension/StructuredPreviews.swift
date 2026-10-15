@@ -12,12 +12,22 @@ enum StructuredPreview {
 
     static func handles(_ url: URL) -> Bool {
         let ext = url.pathExtension.lowercased()
-        return ext == "torrent" || archiveExtensions.contains(ext) || AppPackagePreview.extensions.contains(ext)
+        return isFolder(url) || ext == "torrent" || archiveExtensions.contains(ext) || AppPackagePreview.extensions.contains(ext)
+    }
+
+    /// A plain folder, not a package such as an app or an Xcode archive.
+    static func isFolder(_ url: URL) -> Bool {
+        let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
+        return values?.isDirectory == true && values?.isPackage != true
     }
 
     /// Parses the file and returns the view to host, or throws if it cannot be read at all.
     @MainActor
     static func view(for url: URL) throws -> NSView {
+        if isFolder(url) {
+            let listing = try FolderListing.read(url: url)
+            return NSHostingView(rootView: FolderPreview(name: FileManager.default.displayName(atPath: url.path), listing: listing))
+        }
         if AppPackagePreview.extensions.contains(url.pathExtension.lowercased()) {
             let package = try AppPackage.read(url: url)
             return NSHostingView(rootView: AppPackagePreview(package: package, info: FileInfoReader.read(url)))
@@ -69,6 +79,39 @@ struct ArchivePreview: View {
             }
             if tree.isEmpty {
                 Spacer()
+            } else {
+                FileTreeTable(nodes: tree, showsDates: true)
+            }
+        }
+    }
+}
+
+// MARK: - Folder
+
+struct FolderPreview: View {
+    let name: String
+    let listing: FolderListing
+    let tree: [FileTreeNode]
+
+    init(name: String, listing: FolderListing) {
+        self.name = name
+        self.listing = listing
+        tree = FileTree.build(listing.items)
+    }
+
+    private var summary: String {
+        let files = listing.fileCount.formatted() + (listing.isTruncated ? "+" : "")
+        return [listing.fileCount == 1 ? "1 file" : "\(files) files", Format.bytes(listing.totalSize)].joined(separator: " · ")
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            PreviewHeader(symbol: "folder", title: name, subtitle: summary)
+            if listing.isTruncated {
+                Banner(symbol: "ellipsis.circle", text: "Showing the first \(listing.items.count.formatted()) items.")
+            }
+            if tree.isEmpty {
+                ContentUnavailableView("Empty Folder", systemImage: "folder")
             } else {
                 FileTreeTable(nodes: tree, showsDates: true)
             }
@@ -190,9 +233,16 @@ struct Banner: View {
 struct FileTreeTable: View {
     let nodes: [FileTreeNode]
     let showsDates: Bool
+    @State private var expanded: Set<String>
+
+    init(nodes: [FileTreeNode], showsDates: Bool) {
+        self.nodes = nodes
+        self.showsDates = showsDates
+        _expanded = State(initialValue: FileTree.initiallyExpanded(nodes))
+    }
 
     var body: some View {
-        Table(nodes, children: \.children) {
+        Table(of: FileTreeNode.self) {
             TableColumn("Name") { node in
                 Label {
                     Text(node.name).lineLimit(1).truncationMode(.middle)
@@ -211,6 +261,8 @@ struct FileTreeTable: View {
                 }
                 .width(min: 110, ideal: 150, max: 200)
             }
+        } rows: {
+            FileTreeRows(nodes: nodes, expanded: $expanded)
         }
         .tableStyle(.inset(alternatesRowBackgrounds: true))
     }
@@ -230,6 +282,34 @@ struct FileTreeTable: View {
         case "app", "exe", "dmg", "pkg", "msi", "apk", "ipa": return "app.badge"
         default: return "doc"
         }
+    }
+}
+
+/// Outline rows whose folders open and close through `expanded`, so a preview can start with
+/// them open (`Table(_:children:)` always starts collapsed).
+struct FileTreeRows: TableRowContent {
+    let nodes: [FileTreeNode]
+    let expanded: Binding<Set<String>>
+
+    var tableRowBody: some TableRowContent<FileTreeNode> {
+        ForEach(nodes) { node in
+            if let children = node.children {
+                DisclosureTableRow(node, isExpanded: isExpanded(node.id)) {
+                    FileTreeRows(nodes: children, expanded: expanded)
+                }
+            } else {
+                TableRow(node)
+            }
+        }
+    }
+
+    private func isExpanded(_ id: String) -> Binding<Bool> {
+        Binding(
+            get: { expanded.wrappedValue.contains(id) },
+            set: { open in
+                if open { expanded.wrappedValue.insert(id) } else { expanded.wrappedValue.remove(id) }
+            }
+        )
     }
 }
 

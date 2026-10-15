@@ -57,6 +57,32 @@ struct FileTreeTests {
     }
 }
 
+@Suite("FileTree initial expansion")
+struct FileTreeExpansionTests {
+    private func files(_ paths: [String]) -> [FileTreeNode] {
+        FileTree.build(paths.map { FileTreeItem(path: $0, isDirectory: false, size: 1) })
+    }
+
+    @Test("A small tree opens every folder, empty folders stay closed")
+    func everything() {
+        var items = ["src/app/main.swift", "src/lib/util.swift", "docs/readme.md", "top.txt"]
+            .map { FileTreeItem(path: $0, isDirectory: false, size: 1) }
+        items.append(FileTreeItem(path: "empty", isDirectory: true, size: nil))
+        let roots = FileTree.build(items)
+        #expect(FileTree.initiallyExpanded(roots) == ["src", "src/app", "src/lib", "docs"])
+    }
+
+    @Test("Upper levels open first; a folder that would pass the row limit stays closed")
+    func limit() {
+        // 3 roots + 2 in "a" + 2 in "a/deep" = 7 rows; "big" alone would add 10.
+        let roots = files(["a/deep/1", "a/deep/2", "a/x"] + (1...10).map { "big/\($0)" } + ["z.txt"])
+        #expect(FileTree.initiallyExpanded(roots, rowLimit: 7) == ["a", "a/deep"])
+        #expect(FileTree.initiallyExpanded(roots, rowLimit: 5) == ["a"])
+        #expect(FileTree.initiallyExpanded(roots, rowLimit: 3).isEmpty)
+        #expect(FileTree.initiallyExpanded(roots, rowLimit: 100).count == 3)
+    }
+}
+
 @Suite("FileTree single root")
 struct FileTreeSingleRootTests {
     @Test("A lone top-level folder is opened; its name is returned separately")

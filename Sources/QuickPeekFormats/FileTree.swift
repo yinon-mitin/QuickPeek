@@ -68,6 +68,26 @@ public enum FileTree {
         return (root.name, children)
     }
 
+    /// Folders to show already opened: level by level, every folder whose contents still fit in
+    /// `rowLimit` visible rows. Small archives open completely; a big one opens its upper levels
+    /// and keeps folders that would flood the list closed.
+    public static func initiallyExpanded(_ roots: [FileTreeNode], rowLimit: Int = 200) -> Set<String> {
+        var expanded: Set<String> = []
+        var rows = roots.count
+        var level = roots
+        while !level.isEmpty {
+            var next: [FileTreeNode] = []
+            for node in level {
+                guard let children = node.children, !children.isEmpty, rows + children.count <= rowLimit else { continue }
+                expanded.insert(node.id)
+                rows += children.count
+                next += children
+            }
+            level = next
+        }
+        return expanded
+    }
+
     public static func build(_ listing: ArchiveListing) -> [FileTreeNode] {
         build(listing.entries.map {
             FileTreeItem(path: $0.path, isDirectory: $0.kind == .directory, size: $0.size, modified: $0.modified,

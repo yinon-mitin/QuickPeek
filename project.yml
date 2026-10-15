@@ -211,6 +211,8 @@ targets:
               - public.archive.apk
               - com.google.android.apk
               - com.apple.xcode.archive
+              # Folders list their contents (macOS shows only an icon)
+              - public.folder
     entitlements:
       path: PreviewExtension/QuickPeekPreview.entitlements
       properties:

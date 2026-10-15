@@ -32,7 +32,7 @@ enum Main {
             let input = URL(fileURLWithPath: arguments[1])
             let services = TextServices(vendorDirectory: Bundle.main.resourceURL!.appendingPathComponent("Vendor", isDirectory: true))
             ViewSnapshot.run(output: URL(fileURLWithPath: arguments[2]), dark: arguments.contains("--dark"),
-                             size: StructuredPreview.handles(input) ? NSSize(width: 760, height: 560) : NSSize(width: 900, height: 700)) {
+                             size: StructuredPreview.handles(input) ? StructuredPreview.preferredSize(for: input) : NSSize(width: 900, height: 700)) {
                 StructuredPreview.handles(input)
                     ? try StructuredPreview.view(for: input)
                     : DocumentViews.view(for: try TextDocument.load(input), services: services)

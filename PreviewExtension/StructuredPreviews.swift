@@ -15,6 +15,15 @@ enum StructuredPreview {
         return isFolder(url) || ext == "torrent" || archiveExtensions.contains(ext) || AppPackagePreview.extensions.contains(ext)
     }
 
+    /// An empty folder gets a small window.
+    static func preferredSize(for url: URL) -> NSSize {
+        if isFolder(url) {
+            let visible = try? FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+            return visible?.isEmpty == true ? NSSize(width: 480, height: 110) : NSSize(width: 760, height: 560)
+        }
+        return NSSize(width: 760, height: 560)
+    }
+
     /// A plain folder, not a package such as an app or an Xcode archive.
     static func isFolder(_ url: URL) -> Bool {
         let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isPackageKey])
@@ -100,22 +109,23 @@ struct FolderPreview: View {
     }
 
     private var summary: String {
+        if tree.isEmpty { return "Empty folder" }
         let files = listing.fileCount.formatted() + (listing.isTruncated ? "+" : "")
         return [listing.fileCount == 1 ? "1 file" : "\(files) files", Format.bytes(listing.totalSize)].joined(separator: " · ")
     }
 
     var body: some View {
+        // An empty folder is just the header, in a window sized for it (see `preferredSize`).
         VStack(alignment: .leading, spacing: 0) {
             PreviewHeader(symbol: "folder", title: name, subtitle: summary)
             if listing.isTruncated {
                 Banner(symbol: "ellipsis.circle", text: "Showing the first \(listing.items.count.formatted()) items.")
             }
-            if tree.isEmpty {
-                ContentUnavailableView("Empty Folder", systemImage: "folder")
-            } else {
+            if !tree.isEmpty {
                 FileTreeTable(nodes: tree, showsDates: true)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 }
 
@@ -234,37 +244,49 @@ struct FileTreeTable: View {
     let nodes: [FileTreeNode]
     let showsDates: Bool
     @State private var expanded: Set<String>
+    private let levels: [[String]]
 
     init(nodes: [FileTreeNode], showsDates: Bool) {
         self.nodes = nodes
         self.showsDates = showsDates
-        _expanded = State(initialValue: FileTree.initiallyExpanded(nodes))
+        // The outline opens a folder only after its parent's rows are loaded, so the top level
+        // opens with the table and each deeper level a moment later (see `body`).
+        let opened = FileTree.initiallyExpanded(nodes)
+        levels = Dictionary(grouping: opened) { $0.split(separator: "/").count }.sorted { $0.key < $1.key }.map(\.value)
+        _expanded = State(initialValue: Set(levels.first ?? []))
     }
 
     var body: some View {
-        Table(of: FileTreeNode.self) {
-            TableColumn("Name") { node in
-                Label {
-                    Text(node.name).lineLimit(1).truncationMode(.middle)
-                } icon: {
-                    Image(systemName: Self.symbol(for: node)).foregroundStyle(node.isDirectory ? Color.accentColor : .secondary)
-                }
-                .help(node.linkTarget.map { "\(node.id) → \($0)" } ?? node.id)
-            }
-            TableColumn("Size") { node in
-                Text(node.size.map(Format.bytes) ?? "—").monospacedDigit().foregroundStyle(.secondary)
-            }
-            .width(min: 70, ideal: 90, max: 120)
-            if showsDates {
-                TableColumn("Modified") { node in
-                    Text(node.modified?.formatted(date: .abbreviated, time: .shortened) ?? "").foregroundStyle(.secondary)
-                }
-                .width(min: 110, ideal: 150, max: 200)
-            }
-        } rows: {
-            FileTreeRows(nodes: nodes, expanded: $expanded)
-        }
+        Table(of: FileTreeNode.self) { columns } rows: { FileTreeRows(nodes: nodes, expanded: $expanded) }
         .tableStyle(.inset(alternatesRowBackgrounds: true))
+        .task {
+            for level in levels.dropFirst() {
+                try? await Task.sleep(for: .milliseconds(10))
+                expanded.formUnion(level)
+            }
+        }
+    }
+
+    @TableColumnBuilder<FileTreeNode, Never> private var columns: some TableColumnContent<FileTreeNode, Never> {
+        TableColumn("Name") { node in
+            Label {
+                Text(node.name).lineLimit(1).truncationMode(.middle)
+            } icon: {
+                Image(systemName: Self.symbol(for: node)).foregroundStyle(node.isDirectory ? Color.accentColor : .secondary)
+            }
+            .help(node.linkTarget.map { "\(node.id) → \($0)" } ?? node.id)
+        }
+        .width(min: 160, ideal: 220)
+        TableColumn("Size") { node in
+            Text(node.size.map(Format.bytes) ?? "—").monospacedDigit().foregroundStyle(.secondary)
+        }
+        .width(min: 70, ideal: 90, max: 120)
+        if showsDates {
+            TableColumn("Modified") { node in
+                Text(node.modified?.formatted(date: .abbreviated, time: .shortened) ?? "").foregroundStyle(.secondary)
+            }
+            .width(min: 110, ideal: 150, max: 200)
+        }
     }
 
     static func symbol(for node: FileTreeNode) -> String {

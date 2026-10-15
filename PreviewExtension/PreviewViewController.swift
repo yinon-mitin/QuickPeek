@@ -42,7 +42,7 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
             try showPlayer(for: url)
         } else if StructuredPreview.handles(url) {
             install(try StructuredPreview.view(for: url))
-            preferredContentSize = NSSize(width: 760, height: 560)
+            preferredContentSize = StructuredPreview.preferredSize(for: url)
         } else {
             install(DocumentViews.view(for: try TextDocument.load(url), services: TextPreview.services))
             preferredContentSize = NSSize(width: 900, height: 700)

@@ -5,6 +5,8 @@ Syntax Highlight and similar single-purpose plugins with one native, lightweight
 
 Principles: Apple frameworks first (VideoToolbox, AudioToolbox, TextKit, JavaScriptCore);
 no bundled ffmpeg or other large codec libraries; every parser covered by `swift test`.
+No settings UI: QuickPeek fills gaps in macOS with sensible defaults and stays out of the way;
+extensions are switched on and off in System Settings like any other.
 
 ## Done
 
@@ -40,7 +42,6 @@ no bundled ffmpeg or other large codec libraries; every parser covered by `swift
 - App icon for QuickPeek (the host app still uses the generic icon).
 - A MediaExtension format reader (macOS 15+) so apps that opt in, such as QuickTime Player,
   could open MKV/WebM through QuickPeek's demuxer. Needs Developer ID signing.
-- Settings window: themes, font size, line numbers, autoplay and volume.
 - RAW photos from cameras newer than the installed macOS: show the JPEG preview embedded
   in the RAW file until Apple adds the camera.
 - Subtitles (SRT/ASS tracks in MKV) in the player.

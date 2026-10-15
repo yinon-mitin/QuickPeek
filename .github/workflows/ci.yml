@@ -36,7 +36,7 @@ jobs:
         run: script/build.sh
 
       - name: Upload app
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: QuickPeek
           path: build/QuickPeek.app

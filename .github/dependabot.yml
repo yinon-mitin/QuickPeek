@@ -1,0 +1,10 @@
+# Keeps the GitHub Actions used by CI and releases up to date (QuickPeek has no package dependencies;
+# highlight.js is pinned in Vendor/ and updated with script/fetch_vendor.sh).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "CI"

@@ -1,67 +1,114 @@
 name: Release
 
-# Push a tag such as v0.6.0: the app is built, zipped and attached to a GitHub release whose
-# notes come from CHANGELOG.md, and the Homebrew cask in yinon-mitin/homebrew-tap is updated
-# (when the TAP_TOKEN secret is set: a fine-grained token with Contents write access to that repo).
+# Push a tag such as v0.7.0: the app is built, zipped and attached to a GitHub release whose
+# notes come from CHANGELOG.md; then the Homebrew cask in yinon-mitin/homebrew-tap is pointed at
+# the new zip. The cask step can also be run by hand for an existing release (Actions → Release →
+# Run workflow), which is how the TAP_TOKEN secret is checked without publishing anything.
+#
+# TAP_TOKEN: a fine-grained token with "Contents: Read and write" on yinon-mitin/homebrew-tap.
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag whose zip the cask should point to (for example v0.6.0)
+        required: true
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   release:
+    if: github.event_name == 'push'
     runs-on: macos-26
-    env:
-      TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Install XcodeGen
         run: brew install xcodegen
 
+      - name: Check the version matches the tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          grep -q "MARKETING_VERSION: $version$" project.yml || {
+            echo "::error::project.yml MARKETING_VERSION does not match tag $GITHUB_REF_NAME"; exit 1; }
+          grep -q "^## $version " CHANGELOG.md || {
+            echo "::error::CHANGELOG.md has no '## $version' section"; exit 1; }
+
       - name: Test and build
         run: script/build.sh
 
       - name: Package
-        id: package
         run: |
           version="${GITHUB_REF_NAME#v}"
-          zip="QuickPeek-$version.zip"
-          ditto -c -k --sequesterRsrc --keepParent build/QuickPeek.app "$zip"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "zip=$zip" >> "$GITHUB_OUTPUT"
-          echo "sha256=$(shasum -a 256 "$zip" | cut -d ' ' -f 1)" >> "$GITHUB_OUTPUT"
+          ditto -c -k --sequesterRsrc --keepParent build/QuickPeek.app "QuickPeek-$version.zip"
 
       - name: Release notes from the changelog
         run: |
-          awk -v version="${{ steps.package.outputs.version }}" '
+          awk -v version="${GITHUB_REF_NAME#v}" '
             index($0, "## " version " ") == 1 { found = 1; next }
             /^## / && found { exit }
             found
           ' CHANGELOG.md > notes.md
-          printf '\n**Install:** `brew install --cask yinon-mitin/tap/quickpeek`, or download the zip below.\n' >> notes.md
+          printf '\n**Install or update:** `brew install --cask yinon-mitin/tap/quickpeek` (or `brew upgrade --cask quickpeek`), or download the zip below.\n' >> notes.md
           printf 'QuickPeek is not notarized: on first launch, allow it in System Settings → Privacy & Security.\n' >> notes.md
 
       - name: Publish the release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "${{ steps.package.outputs.zip }}" \
-            --title "QuickPeek ${{ steps.package.outputs.version }}" --notes-file notes.md
+          gh release create "$GITHUB_REF_NAME" "QuickPeek-${GITHUB_REF_NAME#v}.zip" \
+            --title "QuickPeek ${GITHUB_REF_NAME#v}" --notes-file notes.md
 
-      - name: Update the Homebrew cask
-        if: env.TAP_TOKEN != ''
+  tap:
+    needs: release
+    # Runs after a tagged release, or alone when started by hand.
+    if: always() && (needs.release.result == 'success' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+      TAP_TOKEN: ${{ secrets.TAP_TOKEN }}
+    steps:
+      - name: Check the tap token
         run: |
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::warning::TAP_TOKEN is not set; update Casks/quickpeek.rb in yinon-mitin/homebrew-tap by hand."
+            exit 0
+          fi
+          can_push=$(GH_TOKEN="$TAP_TOKEN" gh api repos/yinon-mitin/homebrew-tap --jq .permissions.push)
+          if [ "$can_push" != "true" ]; then
+            echo "::error::TAP_TOKEN cannot push to yinon-mitin/homebrew-tap (it needs Contents: Read and write)."
+            exit 1
+          fi
+          echo "TAP_TOKEN can push to yinon-mitin/homebrew-tap."
+
+      - name: Point the cask at the release
+        if: env.TAP_TOKEN != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version="${TAG#v}"
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p "QuickPeek-$version.zip"
+          sha256=$(sha256sum "QuickPeek-$version.zip" | cut -d ' ' -f 1)
+
           git clone "https://x-access-token:${TAP_TOKEN}@github.com/yinon-mitin/homebrew-tap.git" tap
           cd tap
-          sed -i '' \
-            -e 's/^  version ".*"/  version "${{ steps.package.outputs.version }}"/' \
-            -e 's/^  sha256 ".*"/  sha256 "${{ steps.package.outputs.sha256 }}"/' \
+          sed -i \
+            -e "s/^  version \".*\"/  version \"$version\"/" \
+            -e "s/^  sha256 \".*\"/  sha256 \"$sha256\"/" \
             Casks/quickpeek.rb
+          if git diff --quiet; then
+            echo "The cask already points to QuickPeek $version ($sha256)."
+            exit 0
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "quickpeek ${{ steps.package.outputs.version }}"
+          git commit -am "quickpeek $version"
           git push
+          echo "The cask now points to QuickPeek $version ($sha256)."

@@ -8,19 +8,36 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch or pull request makes the running check pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+
       - name: Verify vendored assets
         run: cd Vendor && shasum -a 256 --check --quiet checksums.sha256
+
+      - name: Cache SwiftPM build
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ hashFiles('Package.swift', 'Sources/**/*.swift', 'Tests/**/*.swift') }}
+          restore-keys: spm-${{ runner.os }}-
+
       - name: Install XcodeGen
         run: brew install xcodegen
+
       - name: Test and build
         run: script/build.sh
+
       - name: Upload app
         uses: actions/upload-artifact@v4
         with:
           name: QuickPeek
           path: build/QuickPeek.app
+          retention-days: 14

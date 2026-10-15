@@ -54,6 +54,7 @@ It covers video and audio (codecs, profiles, bitrate, HDR, channels, languages),
 
 ```sh
 brew install --cask yinon-mitin/tap/quickpeek
+brew upgrade --cask quickpeek      # later, to update
 ```
 
 ### Download

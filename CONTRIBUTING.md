@@ -83,4 +83,7 @@ CI runs on GitHub's macOS VMs, which have no hardware video decoder or audio dev
 
 ## Releases
 
-Push a tag such as `v0.6.0`. The release workflow builds the app, attaches `QuickPeek-0.6.0.zip` to a GitHub release and updates the Homebrew cask in [yinon-mitin/homebrew-tap](https://github.com/yinon-mitin/homebrew-tap).
+1. Set `MARKETING_VERSION` in `project.yml` and add a `## X.Y.Z — date` section to `CHANGELOG.md`.
+2. Push a tag: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+The release workflow checks that the version, tag and changelog agree, builds the app, attaches `QuickPeek-X.Y.Z.zip` to a GitHub release, and points the Homebrew cask in [yinon-mitin/homebrew-tap](https://github.com/yinon-mitin/homebrew-tap) at it (using the `TAP_TOKEN` secret). To re-point the cask at an existing release, run the workflow by hand from the Actions tab with that tag.

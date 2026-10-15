@@ -7,8 +7,11 @@ public enum InfoMenu {
     public static let copyAllTag = -1
     static let maxTitleLength = 70
 
-    public static func build(_ info: FileInfo, action: Selector, target: AnyObject?) -> (menu: NSMenu, values: [String]) {
+    /// `appearance` is the system's (light or dark): icons are drawn in its text colour.
+    public static func build(_ info: FileInfo, action: Selector, target: AnyObject?,
+                             appearance: NSAppearance) -> (menu: NSMenu, values: [String]) {
         var values = [info.summary]
+        func icon(_ symbol: String) -> NSImage? { InfoMenu.icon(symbol, appearance: appearance) }
         func item(_ title: String, tag: Int) -> NSMenuItem {
             let item = NSMenuItem(title: shortened(title), action: action, keyEquivalent: "")
             item.target = target
@@ -48,10 +51,12 @@ public enum InfoMenu {
         title.count > maxTitleLength ? String(title.prefix(maxTitleLength - 1)) + "…" : title
     }
 
-    /// An SF Symbol rasterised into a template bitmap. Finder rebuilds extension menus in its
-    /// own process and SF Symbols' vector images do not survive the trip; a template bitmap does,
-    /// and the menu tints it like the text — including white on the selection highlight.
-    static func icon(_ symbol: String) -> NSImage? {
+    /// An SF Symbol rasterised into a bitmap in the menu text colour of `appearance`. Finder
+    /// rebuilds extension menus in its own process: SF Symbols' vector images do not survive the
+    /// trip, and neither does `isTemplate`, so the icon cannot rely on Finder to tint it and
+    /// would stay black in dark mode. It is still marked as a template, which costs nothing if
+    /// Finder ever honours the flag (and would make it white on the selection highlight).
+    static func icon(_ symbol: String, appearance: NSAppearance) -> NSImage? {
         guard let symbolImage = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
             .withSymbolConfiguration(.init(pointSize: 13, weight: .regular)) else { return nil }
         let size = symbolImage.size
@@ -66,7 +71,11 @@ public enum InfoMenu {
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: bitmap)
         let rect = NSRect(origin: .zero, size: size)
         symbolImage.draw(in: rect)
-        NSColor.black.set()
+        var color = NSColor.black
+        appearance.performAsCurrentDrawingAppearance {
+            color = NSColor.labelColor.usingColorSpace(.deviceRGB) ?? .black
+        }
+        color.set()
         rect.fill(using: .sourceAtop)
         NSGraphicsContext.restoreGraphicsState()
 

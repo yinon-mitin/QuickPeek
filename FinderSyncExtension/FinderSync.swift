@@ -20,7 +20,8 @@ final class FinderSync: FIFinderSync {
             return nil
         }
         let info = FileInfoReader.read(url, quick: true)
-        let (menu, values) = InfoMenu.build(info, action: #selector(copyValue(_:)), target: self)
+        let (menu, values) = InfoMenu.build(info, action: #selector(copyValue(_:)), target: self,
+                                            appearance: NSApplication.shared.effectiveAppearance)
         self.values = values
         report = info.report
         return menu

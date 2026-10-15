@@ -3,73 +3,61 @@ import CoreMedia
 import Foundation
 import VideoToolbox
 
-/// Decodes a single keyframe of a Matroska/WebM video into an image — the basis of thumbnails
-/// and poster frames. Only the bytes of one keyframe are read and decoded.
+/// Decodes a single keyframe of a video into an image — the basis of thumbnails and poster
+/// frames. Only the bytes of one keyframe are read and decoded.
 public final class VideoFrameExtractor {
-    public let demuxer: MatroskaDemuxer
-    public let track: MatroskaTrack
+    public let container: MediaContainer
+    public let stream: MediaStream
 
-    public var videoCodec: String { track.codecID }
+    public var videoCodec: String { stream.codecName }
 
     /// Keyframes are usually a few seconds apart; give up rather than scan a whole broken file.
-    private static let maxFramesScanned = 5_000
+    private static let maxPacketsScanned = 5_000
 
-    public init(url: URL) throws {
-        demuxer = try MatroskaDemuxer(url: url)
-        track = try Self.videoTrack(in: demuxer.tracks)
+    public convenience init(url: URL) throws {
+        try self.init(container: MediaContainers.open(url))
     }
 
-    static func videoTrack(in tracks: [MatroskaTrack]) throws -> MatroskaTrack {
-        guard let track = tracks.first(where: { $0.type == .video && $0.video != nil }) else {
+    public init(container: MediaContainer) throws {
+        self.container = container
+        stream = try Self.videoStream(in: container.streams)
+    }
+
+    static func videoStream(in streams: [MediaStream]) throws -> MediaStream {
+        guard let stream = streams.first(where: { $0.kind == .video }) else {
             throw MediaError.noVideoTrack
         }
-        return track
+        return stream
     }
 
     /// The first keyframe at or after `fraction` of the duration (10% skips most black intros).
     public func image(atFraction fraction: Double = 0.1, maxPixelSize: Int? = nil) throws -> CGImage {
-        _ = VideoCodec.registerSupplementalDecoders
-        guard let codec = VideoCodec(matroskaID: track.codecID) else {
-            throw MediaError.unsupportedCodec(track.codecID)
-        }
-        if codec == .av1 && !VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1) {
-            // macOS has no software AV1 decoder; avoid a slow failing session.
-            throw MediaError.unsupportedCodec(track.codecID)
-        }
-
-        let format = try VideoFormat.description(for: track)
-        let frame = try keyframe(atSeconds: (demuxer.durationSeconds ?? 0) * fraction)
-        let pts = CMTime(seconds: demuxer.seconds(fromTicks: frame.timestamp), preferredTimescale: 90_000)
-        let sample = try VideoFormat.sampleBuffer(frame.data, format: format, presentationTime: pts, isKeyframe: true)
-        return try decode(sample, format: format, size: outputSize(maxPixelSize: maxPixelSize))
+        // Also rejects codecs this Mac cannot decode, such as AV1 without a hardware decoder,
+        // before a slow failing session is attempted.
+        let format = try VideoFormat.description(for: stream)
+        let packet = try keyframe(atSeconds: (container.durationSeconds ?? 0) * fraction)
+        let sample = try VideoFormat.sampleBuffer(packet.data, format: format, presentationTime: packet.presentationTime, isKeyframe: true)
+        return try decode(sample, format: format, size: outputSize(format: format, maxPixelSize: maxPixelSize))
     }
 
-    private func keyframe(atSeconds seconds: Double) throws -> MatroskaFrame {
-        let starts = [demuxer.clusterPosition(forSeconds: seconds), nil]
+    private func keyframe(atSeconds seconds: Double) throws -> MediaPacket {
+        let starts = [container.seekPoint(forSeconds: seconds).position, nil]
         for start in starts {
             var scanned = 0
-            for frame in try demuxer.frames(fromClusterAt: start) where frame.trackNumber == track.number {
-                if frame.isKeyframe { return frame }
+            for packet in try container.packets(from: start) where packet.streamID == stream.id {
+                if packet.isKeyframe { return packet }
                 scanned += 1
-                if scanned > Self.maxFramesScanned { break }
+                if scanned > Self.maxPacketsScanned { break }
             }
         }
         throw MediaError.noKeyframe
     }
 
     /// Pixel size of the decoded image: display aspect ratio, scaled down to `maxPixelSize` if given.
-    private func outputSize(maxPixelSize: Int?) -> (width: Int, height: Int) {
-        guard let video = track.video else { return (0, 0) }
-        var width = Double(video.displayWidth ?? video.pixelWidth)
-        var height = Double(video.displayHeight ?? video.pixelHeight)
-        if video.displayWidth == nil || video.displayHeight == nil {
-            width = Double(video.pixelWidth)
-            height = Double(video.pixelHeight)
-        } else if height > 0 {
-            // DisplayWidth/Height give the aspect ratio; keep the stored pixel height.
-            width = Double(video.pixelHeight) * width / height
-            height = Double(video.pixelHeight)
-        }
+    private func outputSize(format: CMVideoFormatDescription, maxPixelSize: Int?) -> (width: Int, height: Int) {
+        guard let size = VideoFormat.displaySize(of: format) ?? stream.displaySize else { return (0, 0) }
+        var width = size.width
+        var height = size.height
         if let maxPixelSize, max(width, height) > Double(maxPixelSize) {
             let scale = Double(maxPixelSize) / max(width, height)
             width *= scale
@@ -101,7 +89,7 @@ public final class VideoFrameExtractor {
         )
         guard status == noErr, let session else {
             if status == kVTCouldNotFindVideoDecoderErr || status == kVTVideoDecoderUnsupportedDataFormatErr {
-                throw MediaError.unsupportedCodec(track.codecID)
+                throw MediaError.unsupportedCodec(stream.codecName)
             }
             throw MediaError.decodeFailed(status)
         }

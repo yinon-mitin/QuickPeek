@@ -80,6 +80,7 @@ public struct MatroskaFrame: Sendable {
 public final class MatroskaDemuxer {
     public private(set) var docType = ""
     public private(set) var tracks: [MatroskaTrack] = []
+    public private(set) lazy var streams: [MediaStream] = tracks.map(Self.mediaStream)
     public private(set) var cues: [MatroskaCuePoint] = []
     /// Nanoseconds per timestamp tick; 1 ms unless the file says otherwise.
     public private(set) var timestampScale: UInt64 = 1_000_000

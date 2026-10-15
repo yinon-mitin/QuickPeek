@@ -15,9 +15,9 @@ let screenIsAvailable: Bool = {
     return onRealMac && CGDisplayIsAsleep(CGMainDisplayID()) == 0 && !locked
 }()
 
-@Suite("MatroskaPlayer", .serialized)
+@Suite("MediaPlayer", .serialized)
 @MainActor
-struct MatroskaPlayerTests {
+struct MediaPlayerTests {
     private func waitUntil(timeout: Double = 3, _ condition: () -> Bool) async {
         let deadline = Date().addingTimeInterval(timeout)
         while !condition() && Date() < deadline {
@@ -28,7 +28,7 @@ struct MatroskaPlayerTests {
     @Test("Plays video and audio in sync and shows decoded frames",
           arguments: ["h264_aac.mkv", "hevc_ac3.mkv", "vp9_opus.webm"])
     func plays(file: String) async throws {
-        let player = try MatroskaPlayer(url: fixtureURL(file))
+        let player = try MediaPlayer(url: fixtureURL(file))
         player.isMuted = true
         // The display layer only presents frames while it is part of an on-screen layer tree.
         let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: 160, height: 120),
@@ -54,7 +54,7 @@ struct MatroskaPlayerTests {
 
     @Test("Stops at the end and reports it", .enabled(if: onRealMac, "needs an audio device and real-time decoding"))
     func ends() async throws {
-        let player = try MatroskaPlayer(url: fixtureURL("h264_aac.mkv"))
+        let player = try MediaPlayer(url: fixtureURL("h264_aac.mkv"))
         player.isMuted = true
         var ended = false
         player.onEnd = { ended = true }
@@ -66,7 +66,7 @@ struct MatroskaPlayerTests {
 
     @Test("Seeking lands on the keyframe at or before the target")
     func seeks() async throws {
-        let player = try MatroskaPlayer(url: fixtureURL("h264_aac.mkv"))
+        let player = try MediaPlayer(url: fixtureURL("h264_aac.mkv"))
         player.isMuted = true
         player.seek(to: 0.7)
         // The fixture has keyframes at 0.0 and 0.5 s.
@@ -81,10 +81,10 @@ struct MatroskaPlayerTests {
     @Test("Tracks without a native decoder are listed, the rest still plays")
     func unsupportedAudio() throws {
         // AV1 has no decoder on Macs before M3; FLAC audio always works.
-        let player = try MatroskaPlayer(url: fixtureURL("av1_flac.mkv"))
+        let player = try MediaPlayer(url: fixtureURL("av1_flac.mkv"))
         #expect(player.hasAudio)
         if !player.hasVideo {
-            #expect(player.unsupportedCodecs == ["V_AV1"])
+            #expect(player.unsupportedCodecs == ["AV1"])
         }
     }
 }

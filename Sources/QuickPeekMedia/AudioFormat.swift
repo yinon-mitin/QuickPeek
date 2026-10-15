@@ -2,72 +2,81 @@ import AudioToolbox
 import CoreMedia
 import Foundation
 
-/// Describes a Matroska audio track the way AudioToolbox expects it: stream format plus the
-/// decoder configuration ("magic cookie") translated from Matroska's CodecPrivate.
+/// Describes an audio stream the way AudioToolbox expects it: stream format plus the decoder
+/// configuration ("magic cookie").
 public struct AudioFormat {
-    enum Codec { case aac, opus, flac, ac3, eac3, mp3 }
-
-    public let codecID: String
     public private(set) var streamDescription: AudioStreamBasicDescription
     public private(set) var magicCookie: Data?
-    let codec: Codec
+    let codec: MediaCodec
 
-    public init(track: MatroskaTrack) throws {
-        guard let audio = track.audio else { throw MediaError.unsupportedCodec(track.codecID) }
-        codecID = track.codecID
-        let channels = UInt32(max(1, audio.channels))
+    public init(stream: MediaStream) throws {
+        codec = stream.codec
+        let channels = UInt32(max(1, stream.channels))
         var description = AudioStreamBasicDescription(
-            mSampleRate: audio.samplingFrequency, mFormatID: 0, mFormatFlags: 0, mBytesPerPacket: 0,
+            mSampleRate: stream.sampleRate, mFormatID: 0, mFormatFlags: 0, mBytesPerPacket: 0,
             mFramesPerPacket: 0, mBytesPerFrame: 0, mChannelsPerFrame: channels, mBitsPerChannel: 0, mReserved: 0
         )
 
-        switch track.codecID {
-        case "A_AAC", "A_AAC/MPEG4/LC", "A_AAC/MPEG2/LC":
-            codec = .aac
-            let config = track.codecPrivate ?? Self.audioSpecificConfig(sampleRate: audio.samplingFrequency, channels: channels)
+        switch stream.codec {
+        case .aac(let config):
             description.mFormatID = kAudioFormatMPEG4AAC
             description.mFormatFlags = UInt32(config.first.map { $0 >> 3 } ?? 2) // audio object type
             description.mFramesPerPacket = 1024
-            magicCookie = Self.elementaryStreamDescriptor(audioSpecificConfig: config)
-        case "A_OPUS":
-            codec = .opus
+            magicCookie = ElementaryStream.descriptor(objectType: 0x40, streamType: 0x05, config: config)
+        case .opus(let head):
             description.mFormatID = kAudioFormatOpus
             description.mSampleRate = 48_000 // Opus always decodes at 48 kHz
             description.mFramesPerPacket = 0 // varies per packet; see framesInPacket(_:)
-            // AudioToolbox takes Matroska's CodecPrivate (the Ogg "OpusHead" packet) as is.
-            magicCookie = track.codecPrivate
-        case "A_FLAC":
-            codec = .flac
-            guard let config = track.codecPrivate, let cookie = Self.flacSpecificBox(codecPrivate: config) else {
-                throw MediaError.unsupportedCodec(track.codecID)
-            }
+            // AudioToolbox takes the Ogg "OpusHead" packet as is.
+            magicCookie = head
+        case .flac(let box):
             description.mFormatID = kAudioFormatFLAC
-            description.mFramesPerPacket = Self.flacFixedBlockSize(cookie) ?? 0
-            description.mFormatFlags = Self.flacBitDepthFlag(audio.bitDepth ?? 16)
-            magicCookie = cookie
-        case "A_AC3":
-            codec = .ac3
+            description.mFramesPerPacket = Self.flacFixedBlockSize(box) ?? 0
+            description.mFormatFlags = Self.flacBitDepthFlag(stream.bitDepth ?? 16)
+            magicCookie = box
+        case .ac3:
             description.mFormatID = kAudioFormatAC3
             description.mFramesPerPacket = 1536
-        case "A_EAC3":
-            codec = .eac3
+        case .eac3:
             description.mFormatID = kAudioFormatEnhancedAC3
             description.mFramesPerPacket = 1536
-        case "A_MPEG/L3":
-            codec = .mp3
+        case .mp3:
             description.mFormatID = kAudioFormatMPEGLayer3
-            description.mFramesPerPacket = audio.samplingFrequency >= 32_000 ? 1152 : 576
+            description.mFramesPerPacket = stream.sampleRate >= 32_000 ? 1152 : 576
+        case .mp2:
+            description.mFormatID = kAudioFormatMPEGLayer2
+            description.mFramesPerPacket = 1152
+        case .pcm(let bits, let isFloat, let isBigEndian):
+            guard [8, 16, 24, 32, 64].contains(bits) else { throw MediaError.unsupportedCodec(stream.codecName) }
+            description.mFormatID = kAudioFormatLinearPCM
+            description.mFormatFlags = kAudioFormatFlagIsPacked
+                | (isFloat ? kAudioFormatFlagIsFloat : bits > 8 ? kAudioFormatFlagIsSignedInteger : 0)
+                | (isBigEndian ? kAudioFormatFlagIsBigEndian : 0)
+            description.mBitsPerChannel = UInt32(bits)
+            description.mBytesPerFrame = UInt32(bits / 8) * channels
+            description.mBytesPerPacket = description.mBytesPerFrame
+            description.mFramesPerPacket = 1
+        case .alaw, .ulaw:
+            description.mFormatID = stream.codec == .alaw ? kAudioFormatALaw : kAudioFormatULaw
+            description.mBitsPerChannel = 8
+            description.mBytesPerFrame = channels
+            description.mBytesPerPacket = channels
+            description.mFramesPerPacket = 1
         default:
-            throw MediaError.unsupportedCodec(track.codecID)
+            throw MediaError.unsupportedCodec(stream.codecName)
         }
+        guard description.mSampleRate > 0 else { throw MediaError.unsupportedCodec(stream.codecName) }
         streamDescription = description
     }
+
+    /// PCM, A-law and μ-law: one packet per frame, so a buffer holds many frames and no packet list.
+    var isPCM: Bool { streamDescription.mFramesPerPacket == 1 && streamDescription.mBytesPerFrame > 0 }
 
     /// Frames (samples per channel) in one packet; 0 when the stream format already says it.
     public func framesInPacket(_ packet: Data) -> Int {
         switch codec {
-        case .opus: return Self.opusSamplesPerPacket(packet)
-        default: return 0
+        case .opus: Self.opusSamplesPerPacket(packet)
+        default: 0
         }
     }
 
@@ -96,6 +105,17 @@ public struct AudioFormat {
     /// One compressed packet as a sample buffer for AVSampleBufferAudioRenderer.
     func sampleBuffer(_ packet: Data, format: CMAudioFormatDescription, presentationTime: CMTime) throws -> CMSampleBuffer {
         let blockBuffer = try VideoFormat.blockBuffer(packet)
+        if isPCM {
+            var sampleBuffer: CMSampleBuffer?
+            let frames = packet.count / Int(max(1, streamDescription.mBytesPerFrame))
+            let status = CMAudioSampleBufferCreateReadyWithPacketDescriptions(
+                allocator: kCFAllocatorDefault, dataBuffer: blockBuffer, formatDescription: format,
+                sampleCount: frames, presentationTimeStamp: presentationTime, packetDescriptions: nil,
+                sampleBufferOut: &sampleBuffer
+            )
+            guard status == noErr, let sampleBuffer else { throw MediaError.decodeFailed(status) }
+            return sampleBuffer
+        }
         var description = AudioStreamPacketDescription(
             mStartOffset: 0,
             mVariableFramesInPacket: UInt32(framesInPacket(packet)),
@@ -136,23 +156,7 @@ public struct AudioFormat {
         return frameSamples * frames
     }
 
-    /// MPEG-4 ES_Descriptor wrapping the AudioSpecificConfig — the body of an MP4 `esds` box,
-    /// which is what Apple's AAC decoder takes as its magic cookie.
-    static func elementaryStreamDescriptor(audioSpecificConfig config: Data) -> Data {
-        func descriptor(_ tag: UInt8, _ payload: Data) -> Data {
-            var data = Data([tag])
-            let length = payload.count
-            data += [0x80 | UInt8((length >> 21) & 0x7F), 0x80 | UInt8((length >> 14) & 0x7F),
-                     0x80 | UInt8((length >> 7) & 0x7F), UInt8(length & 0x7F)]
-            return data + payload
-        }
-        let decoderSpecificInfo = descriptor(0x05, config)
-        let decoderConfig = descriptor(0x04, Data([0x40, 0x15, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]) + decoderSpecificInfo)
-        let slConfig = descriptor(0x06, Data([0x02]))
-        return descriptor(0x03, Data([0x00, 0x00, 0x00]) + decoderConfig + slConfig)
-    }
-
-    /// AAC-LC AudioSpecificConfig for old files that name the profile in the codec ID instead.
+    /// AAC-LC AudioSpecificConfig for files that give only the sample rate and channels.
     static func audioSpecificConfig(sampleRate: Double, channels: UInt32) -> Data {
         let rates: [Double] = [96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000, 7350]
         let index = UInt16(rates.firstIndex(of: sampleRate) ?? 3)
@@ -160,7 +164,7 @@ public struct AudioFormat {
         return Data([UInt8(value >> 8), UInt8(value & 0xFF)])
     }
 
-    /// Matroska stores "fLaC" + metadata blocks; Apple's FLAC decoder takes a complete MP4 `dfLa`
+    /// Matroska and FLV store "fLaC" + metadata blocks; Apple's FLAC decoder takes a complete MP4 `dfLa`
     /// box: size, type, version/flags, then the metadata blocks with the last one flagged.
     static func flacSpecificBox(codecPrivate: Data) -> Data? {
         let data = Data(codecPrivate)

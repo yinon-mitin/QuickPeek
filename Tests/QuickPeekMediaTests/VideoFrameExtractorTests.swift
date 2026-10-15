@@ -46,27 +46,28 @@ struct VideoFrameExtractorTests {
             let image = try extractor.image()
             #expect(image.width == 160)
         } catch let error as MediaError {
-            #expect(error == .unsupportedCodec("V_AV1"))
+            #expect(error == .unsupportedCodec("AV1"))
         }
     }
 
     @Test("Codec support is reported per track")
     func support() throws {
         let extractor = try VideoFrameExtractor(url: fixtureURL("vp9_opus.webm"))
-        #expect(extractor.videoCodec == "V_VP9")
-        #expect(VideoCodec(matroskaID: "V_MPEG4/ISO/AVC") == .h264)
-        #expect(VideoCodec(matroskaID: "V_MPEGH/ISO/HEVC") == .hevc)
-        #expect(VideoCodec(matroskaID: "V_MS/VFW/FOURCC") == nil)
+        #expect(extractor.videoCodec == "VP9")
+        let theora = MatroskaTrack(number: 1, type: .video, codecID: "V_THEORA", video: .init(pixelWidth: 64, pixelHeight: 64))
+        #expect(MatroskaDemuxer.mediaStream(theora).codec == .unsupported("Theora"))
+        #expect(throws: MediaError.unsupportedCodec("Theora")) {
+            try VideoFormat.description(for: MatroskaDemuxer.mediaStream(theora))
+        }
     }
 
     @Test("Audio-only files have no frame to extract")
     func audioOnly() throws {
         let data = try Data(contentsOf: fixtureURL("h264_aac.mkv"))
         let demuxer = try MatroskaDemuxer(source: DataByteSource(data))
-        var tracks = demuxer.tracks
-        tracks.removeAll { $0.type == .video }
+        let streams = demuxer.streams.filter { $0.kind != .video }
         #expect(throws: MediaError.noVideoTrack) {
-            try VideoFrameExtractor.videoTrack(in: tracks)
+            try VideoFrameExtractor.videoStream(in: streams)
         }
     }
 }

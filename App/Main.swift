@@ -97,22 +97,22 @@ enum Main {
     private static func probe(_ input: URL) {
         do {
             let started = Date()
-            let demuxer = try MatroskaDemuxer(url: input)
-            print("doctype=\(demuxer.docType) duration=\(demuxer.durationSeconds.map { String(format: "%.3f", $0) } ?? "?") cues=\(demuxer.cues.count)")
-            var frames: [UInt64: (count: Int, keyframes: Int, bytes: Int)] = [:]
-            for frame in try demuxer.frames() {
-                var entry = frames[frame.trackNumber] ?? (0, 0, 0)
+            let container = try MediaContainers.open(input)
+            print("format=\(container.formatName) duration=\(container.durationSeconds.map { String(format: "%.3f", $0) } ?? "?")")
+            var packets: [UInt64: (count: Int, keyframes: Int, bytes: Int)] = [:]
+            for packet in try container.packets(from: nil) {
+                var entry = packets[packet.streamID] ?? (0, 0, 0)
                 entry.count += 1
-                entry.keyframes += frame.isKeyframe ? 1 : 0
-                entry.bytes += frame.data.count
-                frames[frame.trackNumber] = entry
+                entry.keyframes += packet.isKeyframe ? 1 : 0
+                entry.bytes += packet.data.count
+                packets[packet.streamID] = entry
             }
-            for track in demuxer.tracks {
-                let stats = frames[track.number] ?? (0, 0, 0)
+            for stream in container.streams {
+                let stats = packets[stream.id] ?? (0, 0, 0)
                 var details = ""
-                if let video = track.video { details = "\(video.pixelWidth)x\(video.pixelHeight)" }
-                if let audio = track.audio { details = "\(Int(audio.samplingFrequency))Hz \(audio.channels)ch" }
-                print("track \(track.number) \(track.type) \(track.codecID) \(details) frames=\(stats.count) keyframes=\(stats.keyframes) bytes=\(stats.bytes)")
+                if stream.kind == .video { details = "\(stream.width)x\(stream.height)" }
+                if stream.kind == .audio { details = "\(Int(stream.sampleRate))Hz \(stream.channels)ch" }
+                print("stream \(stream.id) \(stream.kind) \(stream.codecName) \(details) packets=\(stats.count) keyframes=\(stats.keyframes) bytes=\(stats.bytes)")
             }
             print(String(format: "parsed in %.0f ms", Date().timeIntervalSince(started) * 1000))
         } catch {

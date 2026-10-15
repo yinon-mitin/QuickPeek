@@ -50,7 +50,7 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
     }
 
     private func showPlayer(for url: URL) throws {
-        let player = try MatroskaPlayer(url: url)
+        let player = try MediaPlayer(url: url)
         let playerView = PlayerView(player: player)
         install(playerView)
         self.playerView = playerView

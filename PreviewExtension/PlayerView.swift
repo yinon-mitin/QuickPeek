@@ -3,11 +3,11 @@ import AVFoundation
 import QuickPeekMedia
 import VideoToolbox
 
-/// Minimal native player chrome around `MatroskaPlayer`: video, a HUD bar that hides while
+/// Minimal native player chrome around `MediaPlayer`: video, a HUD bar that hides while
 /// playing, click to play/pause. Space is left to Quick Look, which uses it to close the preview.
 @MainActor
 final class PlayerView: NSView {
-    let player: MatroskaPlayer
+    let player: MediaPlayer
 
     private let videoHost = NSView()
     private let bar = NSVisualEffectView()
@@ -20,7 +20,7 @@ final class PlayerView: NSView {
     private var hideWork: DispatchWorkItem?
     private var isScrubbing = false
 
-    init(player: MatroskaPlayer) {
+    init(player: MediaPlayer) {
         self.player = player
         super.init(frame: NSRect(x: 0, y: 0, width: 800, height: 450))
         wantsLayer = true

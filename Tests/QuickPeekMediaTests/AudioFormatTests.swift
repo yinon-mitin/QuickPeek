@@ -11,9 +11,9 @@ struct AudioFormatTests {
     /// Decodes the first packets of the file's audio track to 32-bit float PCM with AudioConverter —
     /// the same decoders AVSampleBufferAudioRenderer uses — and returns the peak amplitude.
     private func peakAmplitude(of file: String, packets: Int = 20) throws -> Float {
-        let demuxer = try MatroskaDemuxer(url: fixtureURL(file))
-        let track = try #require(demuxer.tracks.first { $0.type == .audio })
-        let format = try AudioFormat(track: track)
+        let container = try MediaContainers.open(fixtureURL(file))
+        let stream = try #require(container.streams.first { $0.kind == .audio })
+        let format = try AudioFormat(stream: stream)
 
         var input = format.streamDescription
         var output = AudioStreamBasicDescription(
@@ -34,7 +34,7 @@ struct AudioFormatTests {
             #expect(status == noErr)
         }
 
-        let frames = try Array(demuxer.frames().filter { $0.trackNumber == track.number }.prefix(packets))
+        let frames = try Array(container.packets(from: nil).lazy.filter { $0.streamID == stream.id }.prefix(packets))
         let feeder = PacketFeeder(packets: frames.map(\.data), format: format)
         var peak: Float = 0
         var pcm = [Float](repeating: 0, count: 8192 * Int(output.mChannelsPerFrame))
@@ -62,9 +62,9 @@ struct AudioFormatTests {
         ("h264_aac.mkv", 1024), ("hevc_ac3.mkv", 1536),
     ])
     func framesPerPacket(file: String, frames: Int) throws {
-        let demuxer = try MatroskaDemuxer(url: fixtureURL(file))
-        let track = try #require(demuxer.tracks.first { $0.type == .audio })
-        #expect(try AudioFormat(track: track).streamDescription.mFramesPerPacket == UInt32(frames))
+        let container = try MediaContainers.open(fixtureURL(file))
+        let stream = try #require(container.streams.first { $0.kind == .audio })
+        #expect(try AudioFormat(stream: stream).streamDescription.mFramesPerPacket == UInt32(frames))
     }
 
     @Test("Opus packets report their own sample count from the TOC byte", arguments: [
@@ -84,7 +84,9 @@ struct AudioFormatTests {
     func vorbis() {
         let track = MatroskaTrack(number: 2, type: .audio, codecID: "A_VORBIS",
                                   audio: .init(samplingFrequency: 48_000, channels: 2))
-        #expect(throws: MediaError.unsupportedCodec("A_VORBIS")) { try AudioFormat(track: track) }
+        let stream = MatroskaDemuxer.mediaStream(track)
+        #expect(stream.codecName == "Vorbis")
+        #expect(throws: MediaError.unsupportedCodec("Vorbis")) { try AudioFormat(stream: stream) }
     }
 }
 

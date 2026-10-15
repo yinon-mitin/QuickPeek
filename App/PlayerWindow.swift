@@ -10,9 +10,9 @@ enum PlayerWindow {
             let app = NSApplication.shared
             app.setActivationPolicy(output == nil ? .regular : .prohibited)
 
-            let player: MatroskaPlayer
+            let player: MediaPlayer
             do {
-                player = try MatroskaPlayer(url: input)
+                player = try MediaPlayer(url: input)
             } catch {
                 Main.fail("\(input.path): \(error)")
             }

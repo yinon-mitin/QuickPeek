@@ -3,16 +3,16 @@ import CoreMedia
 import Foundation
 import VideoToolbox
 
-/// Plays Matroska/WebM without AVPlayer (which cannot open these containers): our demuxer feeds
-/// compressed samples to AVSampleBufferDisplayLayer and AVSampleBufferAudioRenderer, which decode
-/// them with VideoToolbox/AudioToolbox, and a render synchronizer keeps them in step.
+/// Plays the containers AVPlayer cannot open (Matroska/WebM, MPEG-TS, AVI, FLV): our demuxers
+/// feed compressed samples to AVSampleBufferDisplayLayer and AVSampleBufferAudioRenderer, which
+/// decode them with VideoToolbox/AudioToolbox, and a render synchronizer keeps them in step.
 @MainActor
-public final class MatroskaPlayer {
+public final class MediaPlayer {
     public let videoLayer = AVSampleBufferDisplayLayer()
     public let duration: Double
     public let hasVideo: Bool
     public let hasAudio: Bool
-    /// Codec IDs of tracks macOS cannot decode (for example Vorbis, or AV1 on older Macs).
+    /// Names of codecs macOS cannot decode (for example Vorbis, or AV1 on older Macs).
     public let unsupportedCodecs: [String]
     /// Display size of the video, aspect ratio applied.
     public let videoSize: CGSize?
@@ -21,35 +21,32 @@ public final class MatroskaPlayer {
 
     private let audioRenderer = AVSampleBufferAudioRenderer()
     private let synchronizer = AVSampleBufferRenderSynchronizer()
-    private let demuxer: MatroskaDemuxer
+    private let container: MediaContainer
     private let feeder: SampleFeeder
     private var endObserver: Any?
 
     public init(url: URL) throws {
-        demuxer = try MatroskaDemuxer(url: url)
-        _ = VideoCodec.registerSupplementalDecoders
+        container = try MediaContainers.open(url)
 
         var unsupported: [String] = []
         var video: SampleFeeder.VideoInput?
-        if let track = demuxer.tracks.first(where: { $0.type == .video }) {
-            if let codec = VideoCodec(matroskaID: track.codecID),
-               codec != .av1 || VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1),
-               let format = try? VideoFormat.description(for: track) {
-                video = .init(track: track, format: format)
+        if let stream = container.streams.first(where: { $0.kind == .video }) {
+            if let format = try? VideoFormat.description(for: stream) {
+                video = .init(stream: stream, format: format)
             } else {
-                unsupported.append(track.codecID)
+                unsupported.append(stream.codecName)
             }
         }
         var audio: SampleFeeder.AudioInput?
-        let audioTracks = demuxer.tracks.filter { $0.type == .audio }
-        for track in audioTracks {
-            if let format = try? AudioFormat(track: track), let description = try? format.formatDescription() {
-                audio = .init(track: track, format: format, description: description)
+        let audioStreams = container.streams.filter { $0.kind == .audio }
+        for stream in audioStreams {
+            if let format = try? AudioFormat(stream: stream), let description = try? format.formatDescription() {
+                audio = .init(stream: stream, format: format, description: description)
                 break
             }
         }
-        if audio == nil, let first = audioTracks.first {
-            unsupported.append(first.codecID)
+        if audio == nil, let first = audioStreams.first {
+            unsupported.append(first.codecName)
         }
         guard video != nil || audio != nil else {
             throw MediaError.unsupportedCodec(unsupported.first ?? "none")
@@ -58,11 +55,11 @@ public final class MatroskaPlayer {
         hasVideo = video != nil
         hasAudio = audio != nil
         unsupportedCodecs = unsupported
-        videoSize = video.flatMap { Self.displaySize($0.track) }
-        duration = demuxer.durationSeconds ?? 0
+        videoSize = video.flatMap { VideoFormat.displaySize(of: $0.format) ?? $0.stream.displaySize }
+        duration = container.durationSeconds ?? 0
 
         feeder = SampleFeeder(
-            demuxer: demuxer,
+            container: container,
             video: video,
             audio: audio,
             videoRenderer: video == nil ? nil : videoLayer.sampleBufferRenderer,
@@ -125,7 +122,7 @@ public final class MatroskaPlayer {
 
     /// Jumps to the keyframe at or before `seconds`; Quick Look needs fast, not frame-exact, seeking.
     public func seek(to seconds: Double) {
-        let point = demuxer.seekPoint(forSeconds: seconds)
+        let point = container.seekPoint(forSeconds: seconds)
         let time = CMTime(seconds: point.seconds, preferredTimescale: 90_000)
         synchronizer.setRate(0, time: time)
         feeder.restart(from: point.position)
@@ -144,39 +141,31 @@ public final class MatroskaPlayer {
         pause()
         onEnd?()
     }
-
-    private static func displaySize(_ track: MatroskaTrack) -> CGSize? {
-        guard let video = track.video, video.pixelWidth > 0, video.pixelHeight > 0 else { return nil }
-        if let width = video.displayWidth, let height = video.displayHeight, width > 0, height > 0 {
-            return CGSize(width: Double(video.pixelHeight) * Double(width) / Double(height), height: Double(video.pixelHeight))
-        }
-        return CGSize(width: video.pixelWidth, height: video.pixelHeight)
-    }
 }
 
 /// Reads frames on its own queue and hands each renderer the samples it asks for. Frames come
 /// interleaved, so samples for the renderer that is not asking are parked until it does.
 final class SampleFeeder: @unchecked Sendable {
     struct VideoInput {
-        let track: MatroskaTrack
+        let stream: MediaStream
         let format: CMVideoFormatDescription
     }
 
     struct AudioInput {
-        let track: MatroskaTrack
+        let stream: MediaStream
         let format: AudioFormat
         let description: CMAudioFormatDescription
     }
 
     private let queue = DispatchQueue(label: "io.github.yinon-mitin.QuickPeek.feeder", qos: .userInitiated)
-    private let demuxer: MatroskaDemuxer
+    private let container: MediaContainer
     private let video: VideoInput?
     private let audio: AudioInput?
     private let videoRenderer: AVSampleBufferVideoRenderer?
     private let audioRenderer: AVSampleBufferAudioRenderer?
 
     // Touched only on `queue`.
-    private var iterator: MatroskaFrameSequence.Iterator?
+    private var iterator: AnyIterator<MediaPacket>?
     private var parkedVideo: [CMSampleBuffer] = []
     private var parkedAudio: [CMSampleBuffer] = []
     private var waitingForKeyframe = true
@@ -184,26 +173,26 @@ final class SampleFeeder: @unchecked Sendable {
     private static let maxParked = 1_500
 
     init(
-        demuxer: MatroskaDemuxer,
+        container: MediaContainer,
         video: VideoInput?,
         audio: AudioInput?,
         videoRenderer: AVSampleBufferVideoRenderer?,
         audioRenderer: AVSampleBufferAudioRenderer?
     ) {
-        self.demuxer = demuxer
+        self.container = container
         self.video = video
         self.audio = audio
         self.videoRenderer = videoRenderer
         self.audioRenderer = audioRenderer
     }
 
-    /// Discards everything queued and starts reading at a cluster (or the first one).
+    /// Discards everything queued and starts reading at a seek position (or the start).
     func restart(from position: Int64?) {
         queue.sync {
             stopRequesting()
             videoRenderer?.flush()
             audioRenderer?.flush()
-            iterator = try? demuxer.frames(fromClusterAt: position).makeIterator()
+            iterator = try? container.packets(from: position)
             parkedVideo.removeAll()
             parkedAudio.removeAll()
             waitingForKeyframe = true
@@ -243,24 +232,26 @@ final class SampleFeeder: @unchecked Sendable {
         }
     }
 
-    /// Reads frames into the parked queues until `satisfied`. Returns false at the end of the file
+    /// Reads packets into the parked queues until `satisfied`. Returns false at the end of the file
     /// (iterator becomes nil) or when the other track's queue is full.
     private func readUntil(_ satisfied: () -> Bool) -> Bool {
         while !satisfied() {
             guard parkedVideo.count < Self.maxParked, parkedAudio.count < Self.maxParked else { return false }
-            guard let frame = iterator?.next() else {
+            guard let packet = iterator?.next() else {
                 iterator = nil
                 return false
             }
-            let time = demuxer.time(fromTicks: frame.timestamp)
-            if let video, frame.trackNumber == video.track.number {
-                if waitingForKeyframe && !frame.isKeyframe { continue }
+            if let video, packet.streamID == video.stream.id {
+                if waitingForKeyframe && !packet.isKeyframe { continue }
                 waitingForKeyframe = false
-                if let sample = try? VideoFormat.sampleBuffer(frame.data, format: video.format, presentationTime: time, isKeyframe: frame.isKeyframe) {
+                if let sample = try? VideoFormat.sampleBuffer(
+                    packet.data, format: video.format, presentationTime: packet.presentationTime,
+                    decodeTime: packet.decodeTime, isKeyframe: packet.isKeyframe
+                ) {
                     parkedVideo.append(sample)
                 }
-            } else if let audio, frame.trackNumber == audio.track.number {
-                if let sample = try? audio.format.sampleBuffer(frame.data, format: audio.description, presentationTime: time) {
+            } else if let audio, packet.streamID == audio.stream.id {
+                if let sample = try? audio.format.sampleBuffer(packet.data, format: audio.description, presentationTime: packet.presentationTime) {
                     parkedAudio.append(sample)
                 }
             }

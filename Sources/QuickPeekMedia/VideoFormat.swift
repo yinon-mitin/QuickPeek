@@ -9,77 +9,115 @@ public enum MediaError: Error, Equatable {
     case decodeFailed(OSStatus)
 }
 
-/// Video codecs that macOS can decode natively, keyed by their Matroska codec IDs.
-public enum VideoCodec: Sendable, Equatable {
-    case h264, hevc, vp9, av1, mpeg4, mpeg2
-
-    public init?(matroskaID: String) {
-        switch matroskaID {
-        case "V_MPEG4/ISO/AVC": self = .h264
-        case "V_MPEGH/ISO/HEVC": self = .hevc
-        case "V_VP9": self = .vp9
-        case "V_AV1": self = .av1
-        case "V_MPEG4/ISO/ASP", "V_MPEG4/ISO/SP", "V_MPEG4/ISO/AP": self = .mpeg4
-        case "V_MPEG2", "V_MPEG1": self = .mpeg2
-        default: return nil
+extension MediaCodec {
+    /// Whether this Mac can decode the codec: AV1 needs a hardware decoder (M3 or later), and
+    /// MPEG-4 Part 2 decodes only in its Simple profile, not Xvid/DivX's Advanced Simple.
+    public var isDecodable: Bool {
+        switch self {
+        case .unsupported: false
+        case .av1: VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
+        case .mpeg4Visual(let config): config.map(MPEG4Visual.isSimpleProfile) ?? true
+        default: true
         }
     }
 
-    var codecType: CMVideoCodecType {
+    var videoCodecType: CMVideoCodecType? {
         switch self {
-        case .h264: kCMVideoCodecType_H264
-        case .hevc: kCMVideoCodecType_HEVC
+        case .h264, .h264ParameterSets: kCMVideoCodecType_H264
+        case .hevc, .hevcParameterSets: kCMVideoCodecType_HEVC
         case .vp9: kCMVideoCodecType_VP9
         case .av1: kCMVideoCodecType_AV1
-        case .mpeg4: kCMVideoCodecType_MPEG4Video
-        case .mpeg2: kCMVideoCodecType_MPEG2Video
+        case .mpeg4Visual: kCMVideoCodecType_MPEG4Video
+        case .mpeg2Video: kCMVideoCodecType_MPEG2Video
+        case .mpeg1Video: kCMVideoCodecType_MPEG1Video
+        case .mjpeg: kCMVideoCodecType_JPEG
+        default: nil
         }
     }
+}
 
+enum VideoFormat {
     /// VP9 and AV1 decoders ship with macOS but must be opted into once per process.
     static let registerSupplementalDecoders: Void = {
         VTRegisterSupplementalVideoDecoderIfAvailable(kCMVideoCodecType_VP9)
         VTRegisterSupplementalVideoDecoderIfAvailable(kCMVideoCodecType_AV1)
     }()
-}
 
-enum VideoFormat {
-    static func description(for track: MatroskaTrack) throws -> CMVideoFormatDescription {
-        guard let codec = VideoCodec(matroskaID: track.codecID), let video = track.video else {
-            throw MediaError.unsupportedCodec(track.codecID)
+    static func description(for stream: MediaStream) throws -> CMVideoFormatDescription {
+        _ = registerSupplementalDecoders
+        guard stream.codec.isDecodable, let codecType = stream.codec.videoCodecType else {
+            throw MediaError.unsupportedCodec(stream.codecName)
         }
-        var atoms: [String: Data] = [:]
-        switch codec {
-        case .h264:
-            guard let config = track.codecPrivate else { throw MediaError.unsupportedCodec(track.codecID) }
-            atoms["avcC"] = config
-        case .hevc:
-            guard let config = track.codecPrivate else { throw MediaError.unsupportedCodec(track.codecID) }
-            atoms["hvcC"] = config
-        case .av1:
-            guard let config = track.codecPrivate else { throw MediaError.unsupportedCodec(track.codecID) }
-            atoms["av1C"] = config
-        case .vp9:
-            atoms["vpcC"] = vp9Configuration(codecPrivate: track.codecPrivate)
-        case .mpeg4, .mpeg2:
-            break
-        }
-
         var extensions: [CFString: Any] = [:]
+        var atoms: [String: Data] = [:]
+        switch stream.codec {
+        case .h264ParameterSets(let sets):
+            return try parameterSetDescription(sets, codec: .h264, stream: stream)
+        case .hevcParameterSets(let sets):
+            return try parameterSetDescription(sets, codec: .hevc, stream: stream)
+        case .h264(let config): atoms["avcC"] = config
+        case .hevc(let config): atoms["hvcC"] = config
+        case .av1(let config): atoms["av1C"] = config
+        case .vp9(let config): atoms["vpcC"] = config
+        case .mpeg4Visual(let config?):
+            atoms["esds"] = Data([0, 0, 0, 0]) + ElementaryStream.descriptor(objectType: 0x20, streamType: 0x04, config: config)
+        default: break
+        }
         if !atoms.isEmpty {
             extensions[kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms] = atoms as CFDictionary
         }
+        if let ratio = pixelAspectRatio(stream) {
+            extensions[kCMFormatDescriptionExtension_PixelAspectRatio] = [
+                kCMFormatDescriptionKey_PixelAspectRatioHorizontalSpacing: ratio.horizontal,
+                kCMFormatDescriptionKey_PixelAspectRatioVerticalSpacing: ratio.vertical,
+            ] as CFDictionary
+        }
+        guard stream.width > 0, stream.height > 0 else { throw MediaError.unsupportedCodec(stream.codecName) }
         var description: CMVideoFormatDescription?
         let status = CMVideoFormatDescriptionCreate(
             allocator: kCFAllocatorDefault,
-            codecType: codec.codecType,
-            width: Int32(clamping: video.pixelWidth),
-            height: Int32(clamping: video.pixelHeight),
+            codecType: codecType,
+            width: Int32(clamping: stream.width),
+            height: Int32(clamping: stream.height),
             extensions: extensions as CFDictionary,
             formatDescriptionOut: &description
         )
         guard status == noErr, let description else { throw MediaError.decodeFailed(status) }
         return description
+    }
+
+    private static func parameterSetDescription(_ sets: [Data], codec: AnnexB.Codec, stream: MediaStream) throws -> CMVideoFormatDescription {
+        var description: CMVideoFormatDescription?
+        let pointers = sets.map { set in
+            let pointer = UnsafeMutablePointer<UInt8>.allocate(capacity: set.count)
+            set.copyBytes(to: pointer, count: set.count)
+            return UnsafePointer(pointer)
+        }
+        defer { pointers.forEach { $0.deallocate() } }
+        let sizes = sets.map(\.count)
+        let status = codec == .h264
+            ? CMVideoFormatDescriptionCreateFromH264ParameterSets(
+                allocator: kCFAllocatorDefault, parameterSetCount: sets.count, parameterSetPointers: pointers,
+                parameterSetSizes: sizes, nalUnitHeaderLength: 4, formatDescriptionOut: &description)
+            : CMVideoFormatDescriptionCreateFromHEVCParameterSets(
+                allocator: kCFAllocatorDefault, parameterSetCount: sets.count, parameterSetPointers: pointers,
+                parameterSetSizes: sizes, nalUnitHeaderLength: 4, extensions: nil, formatDescriptionOut: &description)
+        guard status == noErr, let description else { throw MediaError.decodeFailed(status) }
+        return description
+    }
+
+    /// Display size with the pixel aspect ratio applied, as the decoder will show it.
+    public static func displaySize(of format: CMVideoFormatDescription) -> CGSize? {
+        let size = CMVideoFormatDescriptionGetPresentationDimensions(format, usePixelAspectRatio: true, useCleanAperture: false)
+        return size.width > 0 && size.height > 0 ? CGSize(width: size.width.rounded(), height: size.height.rounded()) : nil
+    }
+
+    /// Pixel aspect ratio as a fraction, when the display aspect differs from width ÷ height.
+    private static func pixelAspectRatio(_ stream: MediaStream) -> (horizontal: Int, vertical: Int)? {
+        guard let aspect = stream.displayAspect, stream.width > 0, stream.height > 0 else { return nil }
+        let ratio = aspect * Double(stream.height) / Double(stream.width)
+        guard abs(ratio - 1) > 0.01 else { return nil }
+        return (Int((ratio * 10_000).rounded()), 10_000)
     }
 
     /// Builds the `vpcC` box body (VP Codec Configuration, version 1). Matroska usually carries
@@ -122,10 +160,11 @@ enum VideoFormat {
         _ data: Data,
         format: CMFormatDescription,
         presentationTime: CMTime,
+        decodeTime: CMTime = .invalid,
         isKeyframe: Bool
     ) throws -> CMSampleBuffer {
         let blockBuffer = try blockBuffer(data)
-        var timing = CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: presentationTime, decodeTimeStamp: .invalid)
+        var timing = CMSampleTimingInfo(duration: .invalid, presentationTimeStamp: presentationTime, decodeTimeStamp: decodeTime)
         var size = data.count
         var sampleBuffer: CMSampleBuffer?
         let status = CMSampleBufferCreateReady(

@@ -61,6 +61,13 @@ public enum FileTree {
         return root.freeze().children ?? []
     }
 
+    /// Archives usually wrap everything in one folder; showing that folder already opened saves
+    /// a click on every preview. Returns the folder's name, if one was opened.
+    public static func openingSingleFolder(_ roots: [FileTreeNode]) -> (folder: String?, nodes: [FileTreeNode]) {
+        guard roots.count == 1, let root = roots.first, let children = root.children else { return (nil, roots) }
+        return (root.name, children)
+    }
+
     public static func build(_ listing: ArchiveListing) -> [FileTreeNode] {
         build(listing.entries.map {
             FileTreeItem(path: $0.path, isDirectory: $0.kind == .directory, size: $0.size, modified: $0.modified,

@@ -56,3 +56,26 @@ struct FileTreeTests {
         #expect(archiveTree.map(\.name) == ["testdir", "testemptydir", "test.txt", "testlink"])
     }
 }
+
+@Suite("FileTree single root")
+struct FileTreeSingleRootTests {
+    @Test("A lone top-level folder is opened; its name is returned separately")
+    func unwrap() {
+        let roots = FileTree.build([
+            FileTreeItem(path: "Project/README.md", isDirectory: false, size: 1),
+            FileTreeItem(path: "Project/Sources/main.swift", isDirectory: false, size: 2),
+        ])
+        let (folder, nodes) = FileTree.openingSingleFolder(roots)
+        #expect(folder == "Project")
+        #expect(nodes.map(\.name) == ["Sources", "README.md"])
+    }
+
+    @Test("Several roots, or a single file, stay as they are")
+    func keep() {
+        let two = FileTree.build([FileTreeItem(path: "a.txt", isDirectory: false, size: 1),
+                                  FileTreeItem(path: "b/c.txt", isDirectory: false, size: 1)])
+        #expect(FileTree.openingSingleFolder(two).folder == nil)
+        let file = FileTree.build([FileTreeItem(path: "a.txt", isDirectory: false, size: 1)])
+        #expect(FileTree.openingSingleFolder(file).nodes.map(\.name) == ["a.txt"])
+    }
+}

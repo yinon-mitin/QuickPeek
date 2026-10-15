@@ -1,125 +1,95 @@
-# QuickPeek
+<p align="center">
+  <img src="docs/banner.svg" width="100%" alt="QuickPeek — Quick Look for the files macOS leaves blank">
+</p>
 
-A free, open-source alternative to a drawer full of small Quick Look utilities.
-One native app previews the files macOS leaves blank: source code, configs,
-Markdown, tables, archives, torrents — and MKV/WebM video, played and
-thumbnailed without ffmpeg.
+<p align="center">
+  <a href="https://github.com/yinon-mitin/QuickPeek/actions/workflows/ci.yml"><img src="https://github.com/yinon-mitin/QuickPeek/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/yinon-mitin/QuickPeek/releases"><img src="https://img.shields.io/github/v/release/yinon-mitin/QuickPeek?display_name=tag&sort=semver" alt="Latest release"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/yinon-mitin/QuickPeek" alt="MIT license"></a>
+  <img src="https://img.shields.io/badge/macOS-26%2B-1a1e24?logo=apple&logoColor=white" alt="macOS 26 or newer">
+</p>
 
-QuickPeek uses Apple's own frameworks wherever they exist. Video is decoded by
-VideoToolbox and AudioToolbox (hardware-accelerated where the Mac supports it);
-QuickPeek only adds what macOS lacks, such as a Matroska/WebM demuxer written in
-Swift. The whole app is under 4 MB — the shared code is one framework used by the app
-and its three extensions — instead of the 50–150 MB that bundled-codec plugins weigh.
+<p align="center"><strong>One small native app that fills the gaps in Quick Look.</strong><br>
+Press Space on MKV videos, archives, source code, Markdown, Android and iOS apps, torrents and more.<br>
+Free and open source, under 4 MB, no ffmpeg, no web views.</p>
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/video.jpg" width="49%" alt="An MKV video playing in Quick Look">
+  <img src="docs/screenshots/code.png" width="49%" alt="Swift source code with syntax highlighting in dark mode">
+  <img src="docs/screenshots/markdown.png" width="49%" alt="A Markdown document with a table, task list and code block">
+  <img src="docs/screenshots/archive.png" width="49%" alt="The contents of a ZIP archive">
+  <img src="docs/screenshots/apk.png" width="49%" alt="An Android app package with its icon and permissions">
+  <img src="docs/screenshots/info.png" width="49%" alt="File details: container, codecs, resolution and bitrate">
+</p>
 
 ## What it previews
 
-| Kind | Formats | Rendering |
-|------|---------|-----------|
-| Code and config | YAML, JSON, TOML, INI, XML, Swift, Python, Shell, Ruby, JS, Go, Rust, C/C++, Java, Kotlin, C#, PHP, Lua, SQL, CSS/SCSS, Dockerfile, Makefile, Protobuf, Terraform, GraphQL, diffs and more | Native text view (TextKit 2) with [highlight.js](https://highlightjs.org) running in JavaScriptCore — no WebKit. Text appears instantly; colours follow |
-| Markdown | `.md`, `.markdown` | GitHub-flavoured Markdown parsed by Foundation, laid out natively: real tables, lists, task lists, highlighted code blocks |
-| Tables | CSV, TSV, semicolon- and pipe-separated | Native table with row numbers and a sticky header; delimiter is detected automatically |
-| Text | `.log` and other text macOS does not preview | Monospaced, wrapped |
-| Archives | ZIP, TAR (gzip, bzip2, xz), RAR, RAR5, 7-Zip, ISO, CPIO, XAR, CAB, LHA, single `.gz`/`.bz2`/`.xz` | File tree with sizes and dates, read with the libarchive built into macOS — nothing is extracted. Encrypted archives are labelled |
-| App packages | `.ipa`, `.apk`, `.xcarchive` | The app's icon (also as the Finder thumbnail), name, version, bundle ID or package, minimum OS, devices, permissions; provisioning profile type, team, expiry and entitlements |
-| Torrents | `.torrent` (BitTorrent v1, v2, hybrid) | Files, size, info hash, pieces, trackers; one click copies the magnet link (private trackers' passkeys are left out of it) |
-| Video | `.mkv`, `.webm`, `.mka` | Native player and Finder thumbnails. Video: H.264, HEVC, VP9, AV1 (Macs with an AV1 decoder, M3 and later). Audio: AAC, Opus, FLAC, AC-3, E-AC-3, MP3 |
+| Files | What you see |
+|-------|--------------|
+| **Video** — MKV, WebM, MKA | A native player with hardware decoding (H.264, HEVC, VP9, AV1\*; AAC, Opus, FLAC, AC-3, E-AC-3, MP3) and Finder thumbnails |
+| **Archives** — ZIP, RAR, 7z, TAR (gz, bz2, xz), ISO, CPIO, XAR, CAB, LHA | The file tree with sizes and dates, without extracting anything |
+| **Code and config** — YAML, JSON, TOML, Swift, Python, Go, Rust, Shell, Dockerfile, ~50 more | Syntax highlighting in light and dark mode |
+| **Markdown** | Rendered text with tables, task lists and highlighted code blocks |
+| **Tables** — CSV, TSV | A real table; the delimiter is detected |
+| **Apps** — IPA, APK, Xcode archives | Icon (also as the Finder thumbnail), version, identifier, minimum OS, permissions, provisioning profile |
+| **Torrents** | Files, size, info hash, trackers, and a button that copies the magnet link |
 
-macOS already previews Word/Excel/PowerPoint, RAW photos (ARW, CR3, NEF…),
-WebP, HEIC, ICO and PDF by itself, so QuickPeek leaves those to the system.
+\* AV1 needs a Mac with an AV1 decoder (M3 or later). Codecs macOS cannot decode (Vorbis, Theora, WMV) are named instead of played.
 
-## File details (a MediaInfo replacement)
+Word, Excel, PowerPoint, PDF, RAW photos, HEIC, WebP and ICO already have good previews in macOS, so QuickPeek leaves them to the system.
 
-Right-click any file in Finder: the context menu shows its summary
-(for example "3840×2160 · HEVC · 23.976 fps · HDR10 · 1:42:05"), with the full technical
-details in the submenu. Choosing a line copies the value, **Copy All Details** copies the
-whole report. QuickPeek's
-own previews also have an ⓘ button with the same details.
+## File details
 
-| Files | Details |
-|-------|---------|
-| Video and audio (MP4, MOV, MKV, WebM, M4A, MP3, WAV…) | Container, duration, overall bitrate, tags; per track: codec, H.264/HEVC profile and level, VP9 profile, resolution, frame rate, bit depth, HDR10/HLG/Dolby Vision, colour primaries/transfer/matrix, sample rate, channels, language |
-| Photos and RAW | Format, resolution, megapixels, colour profile, bit depth; camera, lens, exposure, aperture, ISO, focal length (with full-frame equivalent), flash, capture time; GPS position |
-| Documents | PDF pages, paper size, properties and permissions; Word/Excel/PowerPoint authors, dates, pages, words, sheets, slides; fonts; text encoding, line endings and line counts |
-| Archives, torrents, apps | Archive format, file count, unpacked size and ratio; torrent hashes and trackers; app bundle ID, version, architectures and code signature |
+Right-click any file in Finder: the menu shows a one-line summary, such as
+`3840×2160 · HEVC · 23.976 fps · HDR10 · 1:42:05`, with the full details in its submenu.
+Choose a line to copy its value. The ⓘ button in QuickPeek's previews shows the same details.
 
-The same report is available on the command line:
-`/Applications/QuickPeek.app/Contents/MacOS/QuickPeek --info file…`
-
-Previews follow the system light/dark appearance. Files larger than 2 MB are
-shown up to the limit, tables up to 5,000 rows. Codecs macOS cannot decode
-(for example Vorbis, Theora, WMV) are reported instead of played — QuickPeek
-does not ship ffmpeg. See the [roadmap](docs/ROADMAP.md) for what comes next.
+It covers video and audio (codecs, profiles, bitrate, HDR, channels, languages), photos and RAW (camera, lens, exposure, GPS), documents (PDF and Office properties, fonts, text encoding), archives, torrents and apps (architectures, code signature).
 
 ## Install
 
-Requires macOS 26 or newer.
+### Homebrew
+
+```sh
+brew install --cask yinon-mitin/tap/quickpeek
+```
+
+### Download
+
+Download `QuickPeek-<version>.zip` from [Releases](https://github.com/yinon-mitin/QuickPeek/releases), unzip it and move `QuickPeek.app` to `/Applications`.
+
+### First launch
+
+QuickPeek is signed ad hoc rather than notarized by Apple, so macOS asks once:
+
+1. Open `QuickPeek.app`. macOS says it cannot verify the developer.
+2. Open **System Settings → Privacy & Security** and click **Open Anyway** next to QuickPeek.
+3. Open QuickPeek again. This registers its Quick Look, thumbnail and Finder extensions.
+
+If previews do not appear, check **System Settings → General → Login Items & Extensions**: turn on QuickPeek under **Quick Look** and **Finder**, and turn off older plugins for the same files.
+
+### Build from source
+
+Requires macOS 26 and Xcode 26.
 
 ```sh
 brew install xcodegen
-script/build.sh      # runs the tests, builds build/QuickPeek.app
+git clone https://github.com/yinon-mitin/QuickPeek.git
+cd QuickPeek
+script/build.sh      # runs the tests and builds build/QuickPeek.app
 script/install.sh    # copies it to /Applications and enables the extensions
 ```
 
-If another Quick Look extension handles the same files (for example Syntax
-Highlight, PreviewYaml, QLC, QLCodec-mkv or Webm Quicklook), macOS picks one of
-them. Turn the others off in **System Settings → General → Login Items &
-Extensions → Quick Look**. The Finder menu is listed there under **Finder**
-(QuickPeek Info).
+## Privacy
 
-Local builds are signed ad hoc. For a notarized release, build with a Developer ID and
-the hardened runtime (`ENABLE_HARDENED_RUNTIME=YES`; see `project.yml`).
+The extensions run in the App Sandbox with read-only access to the file you preview. They have no network access, and nothing a file references (remote images, links) is ever loaded.
 
-## Privacy and security
+## Contributing
 
-Previews render untrusted files, so the extensions are built defensively:
-
-- They run in the App Sandbox with read-only access to the file being previewed and no
-  network access. Nothing referenced by a file (remote images, links) is ever fetched.
-- No web views: Markdown is laid out natively and raw HTML in it is shown as text.
-- The only bundled code is highlight.js, pinned by SHA-256 checksums (`Vendor/`); builds
-  never touch the network. It runs in JavaScriptCore inside the sandbox (the preview
-  extension may JIT-compile it, which roughly halves highlighting time).
-
-## Development
-
-```
-Sources/QuickPeekCore    file classification, text decoding, CSV parsing
-Sources/QuickPeekText    highlight.js in JavaScriptCore, Markdown renderer, native document views
-Sources/QuickPeekInfo    file details engine (media, photos, documents, archives, apps)
-FinderSyncExtension      "QuickPeek Info" in Finder's context menu
-Sources/QuickPeekMedia   Matroska/WebM demuxer, CoreMedia bridge, frame extraction, player
-Sources/QuickPeekFormats torrents (bencode), archive listings (system libarchive), file trees
-Sources/CArchive         declarations for the system libarchive (the SDK has no header)
-Tests/                   swift test (media tests use tiny fixtures from script/make_fixtures.sh)
-PreviewExtension         Quick Look preview: player, archive/torrent lists, document views
-ThumbnailExtension       Finder thumbnails for video
-App                      host app; also a CLI for debugging previews
-Vendor                   pinned highlight.js and grammars
-project.yml             XcodeGen spec for the app and extension
-```
-
-Rendering logic lives in `QuickPeekCore` and is covered by `swift test`. To see a
-preview exactly as the extension draws it, without Quick Look:
-
-```sh
-QP=build/QuickPeek.app/Contents/MacOS/QuickPeek
-$QP --snapshot file.yaml out.png [--dark]   # any document, archive or torrent preview as a PNG
-$QP --play movie.mkv                        # the Quick Look player in a window
-$QP --play-snapshot movie.mkv out.png       # play briefly, save the player as a PNG
-$QP --thumbnail movie.mkv out.png [size]    # the Finder thumbnail frame
-$QP --probe movie.mkv                       # tracks and frame counts, like ffprobe
-$QP --info [--quick] file…                  # file details, like mediainfo
-$QP --snapshot-info file out.png            # the ⓘ details panel as a PNG
-```
-
-The demuxer is checked against the official Matroska conformance files
-([ietf-wg-cellar/matroska-test-files](https://github.com/ietf-wg-cellar/matroska-test-files)):
-frame counts match ffprobe on all eight, including the damaged and live-stream ones.
-
-To bump highlight.js, edit the version in `script/fetch_vendor.sh`
-and run `script/fetch_vendor.sh --update-checksums`.
+Bug reports and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) describes the project layout, the tests and the debugging tools; [CHANGELOG.md](CHANGELOG.md) lists what changed in each version.
 
 ## License
 
-MIT, see [LICENSE](LICENSE). Bundled third-party code: highlight.js (BSD-3-Clause). Archives are read with the libarchive that ships with macOS
-(BSD-2-Clause); some test archives come from libarchive's test suite.
+MIT — see [LICENSE](LICENSE). QuickPeek bundles [highlight.js](https://highlightjs.org) (BSD-3-Clause) and reads archives with the libarchive that ships with macOS. The video screenshot is from *Elephants Dream* © Blender Foundation, CC BY 2.5.

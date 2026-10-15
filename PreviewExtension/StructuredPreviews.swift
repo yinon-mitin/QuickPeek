@@ -24,10 +24,11 @@ enum StructuredPreview {
         }
         if url.pathExtension.lowercased() == "torrent" {
             let torrent = try Torrent(data: Data(contentsOf: url, options: .mappedIfSafe))
-            return NSHostingView(rootView: TorrentPreview(torrent: torrent, tree: FileTree.build(torrent)))
+            return NSHostingView(rootView: TorrentPreview(torrent: torrent, tree: FileTree.openingSingleFolder(FileTree.build(torrent)).nodes))
         }
         let listing = try ArchiveListing.read(url: url)
-        return NSHostingView(rootView: ArchivePreview(fileName: url.lastPathComponent, listing: listing, tree: FileTree.build(listing)))
+        let (folder, nodes) = FileTree.openingSingleFolder(FileTree.build(listing))
+        return NSHostingView(rootView: ArchivePreview(fileName: url.lastPathComponent, listing: listing, tree: nodes, folder: folder))
     }
 }
 
@@ -37,6 +38,8 @@ struct ArchivePreview: View {
     let fileName: String
     let listing: ArchiveListing
     let tree: [FileTreeNode]
+    /// The single top-level folder whose contents are shown, if there was one.
+    var folder: String?
 
     private var summary: String {
         var parts = [listing.compression.map { "\(listing.format) · \($0)" } ?? listing.format]
@@ -47,6 +50,7 @@ struct ArchivePreview: View {
             parts.append(files == 1 ? "1 file" : "\(files.formatted()) files")
             parts.append(Format.bytes(listing.totalSize))
         }
+        if let folder { parts.append("in \(folder)/") }
         return parts.joined(separator: " · ")
     }
 

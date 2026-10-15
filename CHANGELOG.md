@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.0 — 2026-10-15
+
+- Folders: Space shows everything inside as a tree with sizes and dates.
+- Archives open with their folders expanded; selecting a file shows it next to the tree (text, code, Markdown, images, PDF), read into memory without extracting.
+- SQLite databases: tables and views with row counts and the first rows, opened read-only.
+- Finder's context menu icons match the light or dark theme.
+
 ## 0.6.0 — 2026-10-15
 
 - App packages: previews and Finder thumbnails for `.ipa`, `.apk` and `.xcarchive` (icon, version, identifier, minimum OS, permissions, provisioning profile).

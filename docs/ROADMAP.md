@@ -29,7 +29,7 @@ extensions are switched on and off in System Settings like any other.
   against androguard), `.xcarchive`; icons as Finder thumbnails; shared code in one
   framework (app under 4 MB).
 
-- **Unreleased** — folders preview as a file tree; archive and torrent trees open with their
+- **0.7** — folders preview as a file tree; archive and torrent trees open with their
   folders expanded. Peeking inside archives: the selected file (text, code, Markdown, images,
   PDF) is read into memory and shown next to the tree. SQLite databases: tables and views
   with row counts and the first rows, through the system libsqlite3, read-only.

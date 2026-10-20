@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1 — 2026-10-20
+
+- Archives: a decompression bomb (a few KB of .tar.bz2 claiming tens of GB) no longer keeps the preview busy; listing stops after 3 seconds and reading a file after 5, and selecting another file stops the previous read.
+- Archives and torrents whose entries claim impossibly large sizes show them instead of failing to open.
+- Archives and app packages are read off the main thread.
+
 ## 0.7.0 — 2026-10-15
 
 - Folders: Space shows everything inside as a tree with sizes and dates.

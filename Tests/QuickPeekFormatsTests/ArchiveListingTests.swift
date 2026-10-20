@@ -124,12 +124,13 @@ struct ArchiveListingTests {
     @Test("Cancelling the calling task stops decompression")
     func bombCancelled() async throws {
         let url = try archiveFixture("bomb.tar.bz2")
-        let start = Date()
         let task = Task.detached { try ArchiveListing.data(ofEntry: "README.txt", in: url, timeLimit: 60) }
         try await Task.sleep(for: .milliseconds(200))
+        // Timed from the cancel: on a busy runner the sleep can resume seconds late.
+        let cancelled = Date()
         task.cancel()
         #expect(try await task.value == nil)
-        #expect(Date().timeIntervalSince(start) < 2)
+        #expect(Date().timeIntervalSince(cancelled) < 1)
     }
 
     @Test("Entry sizes whose sum overflows Int64 add up to the maximum instead of crashing")

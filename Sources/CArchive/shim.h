@@ -46,6 +46,7 @@ int archive_read_support_format_raw(struct archive *);
 int archive_read_open_filename(struct archive *, const char *filename, size_t block_size);
 int archive_read_next_header(struct archive *, struct archive_entry **);
 ssize_t archive_read_data(struct archive *, void *buffer, size_t length);
+int archive_read_data_block(struct archive *, const void **buffer, size_t *size, int64_t *offset);
 int archive_read_data_skip(struct archive *);
 int archive_read_free(struct archive *);
 

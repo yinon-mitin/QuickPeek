@@ -53,12 +53,12 @@ public struct Torrent: Sendable {
         } else {
             files = [File(path: [name], length: info["length"]?.integer ?? 0)]
         }
-        totalLength = files.reduce(0) { $0 + $1.length }
+        totalLength = files.reduce(0) { $0.addingClamped($1.length) }
 
         if let pieces = info["pieces"]?.bytes {
             pieceCount = pieces.count / 20
         } else if pieceLength > 0 {
-            pieceCount = Int((totalLength + pieceLength - 1) / pieceLength)
+            pieceCount = Int(totalLength / pieceLength + (totalLength % pieceLength > 0 ? 1 : 0))
         } else {
             pieceCount = 0
         }

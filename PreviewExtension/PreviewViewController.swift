@@ -29,19 +29,19 @@ final class PreviewViewController: NSViewController, QLPreviewingController {
 
     func preparePreviewOfFile(at url: URL) async throws {
         do {
-            try preparePreview(url)
+            try await preparePreview(url)
         } catch {
             Self.log.error("Preview of \(url.pathExtension, privacy: .public) file failed: \(String(describing: error), privacy: .public)")
             throw error
         }
     }
 
-    private func preparePreview(_ url: URL) throws {
+    private func preparePreview(_ url: URL) async throws {
         defer { InfoButton.attach(to: view, fileURL: url) }
         if Self.matroskaExtensions.contains(url.pathExtension.lowercased()) {
             try showPlayer(for: url)
         } else if StructuredPreview.handles(url) {
-            install(try StructuredPreview.view(for: url, services: TextPreview.services))
+            install(try await StructuredPreview.view(for: url, services: TextPreview.services))
             preferredContentSize = StructuredPreview.preferredSize(for: url)
         } else {
             install(DocumentViews.view(for: try TextDocument.load(url), services: TextPreview.services))

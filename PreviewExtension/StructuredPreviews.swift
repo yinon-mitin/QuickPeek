@@ -35,9 +35,16 @@ enum StructuredPreview {
         return values?.isDirectory == true && values?.isPackage != true
     }
 
+    /// Runs blocking archive reading away from the main thread. Cancelling the caller cancels the
+    /// work: the libarchive loops check `Task.isCancelled` and give up.
+    static func offMain<T: Sendable>(_ work: @escaping @Sendable () throws -> T) async throws -> T {
+        let task = Task.detached(priority: .userInitiated, operation: work)
+        return try await withTaskCancellationHandler { try await task.value } onCancel: { task.cancel() }
+    }
+
     /// Parses the file and returns the view to host, or throws if it cannot be read at all.
     @MainActor
-    static func view(for url: URL, services: TextServices) throws -> NSView {
+    static func view(for url: URL, services: TextServices) async throws -> NSView {
         if isFolder(url) {
             let listing = try FolderListing.read(url: url)
             return NSHostingView(rootView: FolderPreview(name: FileManager.default.displayName(atPath: url.path), listing: listing))
@@ -47,15 +54,18 @@ enum StructuredPreview {
             return NSHostingView(rootView: SQLitePreview(fileName: url.lastPathComponent, fileSize: size, database: try SQLiteDatabase(url: url)))
         }
         if AppPackagePreview.extensions.contains(url.pathExtension.lowercased()) {
-            let package = try AppPackage.read(url: url)
-            return NSHostingView(rootView: AppPackagePreview(package: package, info: FileInfoReader.read(url)))
+            let package = try await offMain { try AppPackage.read(url: url) }
+            return NSHostingView(rootView: AppPackagePreview(package: package, info: await FileInfoReader.read(url)))
         }
         if url.pathExtension.lowercased() == "torrent" {
             let torrent = try Torrent(data: Data(contentsOf: url, options: .mappedIfSafe))
             return NSHostingView(rootView: TorrentPreview(torrent: torrent, tree: FileTree.openingSingleFolder(FileTree.build(torrent)).nodes))
         }
-        let listing = try ArchiveListing.read(url: url)
-        let (folder, nodes) = FileTree.openingSingleFolder(FileTree.build(listing))
+        let (listing, folder, nodes) = try await offMain {
+            let listing = try ArchiveListing.read(url: url)
+            let (folder, nodes) = FileTree.openingSingleFolder(FileTree.build(listing))
+            return (listing, folder, nodes)
+        }
         return NSHostingView(rootView: ArchivePreview(fileName: url.lastPathComponent, archive: url, listing: listing,
                                                       tree: nodes, folder: folder, services: services))
     }

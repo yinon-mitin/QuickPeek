@@ -81,8 +81,8 @@ struct ArchiveEntryPane: View {
             return
         }
         let archive = archive
-        let result = await Task.detached(priority: .userInitiated) { ArchivePeek.read(entry, in: archive) }.value
-        guard !Task.isCancelled else { return }
+        guard let result = try? await StructuredPreview.offMain({ ArchivePeek.read(entry, in: archive) }),
+              !Task.isCancelled else { return }
         peek = (node.id, result)
     }
 

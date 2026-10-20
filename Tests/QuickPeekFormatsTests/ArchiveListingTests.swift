@@ -100,4 +100,43 @@ struct ArchiveListingTests {
         try Data(repeating: 0x41, count: 300).write(to: url)
         #expect(throws: ArchiveError.self) { try ArchiveListing.read(url: url) }
     }
+
+    // bomb.tar.bz2 is 14 KB: 16 GiB of zeros in zeros.bin, then README.txt. Decompressing all of it
+    // takes several seconds, so finishing well under two shows the limit held.
+
+    @Test("A decompression bomb is listed up to the time limit, not inflated")
+    func bombListing() throws {
+        let start = Date()
+        let listing = try ArchiveListing.read(url: archiveFixture("bomb.tar.bz2"), timeLimit: 0.3)
+        #expect(Date().timeIntervalSince(start) < 2)
+        #expect(listing.entries.map(\.path) == ["zeros.bin"])
+        #expect(listing.entries.first?.size == 16 << 30)
+        #expect(listing.isTruncated)
+    }
+
+    @Test("Reading a file behind a bomb gives up at the time limit")
+    func bombEntry() throws {
+        let start = Date()
+        #expect(try ArchiveListing.data(ofEntry: "README.txt", in: archiveFixture("bomb.tar.bz2"), timeLimit: 0.3) == nil)
+        #expect(Date().timeIntervalSince(start) < 2)
+    }
+
+    @Test("Cancelling the calling task stops decompression")
+    func bombCancelled() async throws {
+        let url = try archiveFixture("bomb.tar.bz2")
+        let start = Date()
+        let task = Task.detached { try ArchiveListing.data(ofEntry: "README.txt", in: url, timeLimit: 60) }
+        try await Task.sleep(for: .milliseconds(200))
+        task.cancel()
+        #expect(try await task.value == nil)
+        #expect(Date().timeIntervalSince(start) < 2)
+    }
+
+    @Test("Entry sizes whose sum overflows Int64 add up to the maximum instead of crashing")
+    func hugeSizes() throws {
+        let listing = try ArchiveListing.read(url: archiveFixture("huge-sizes.zip"))
+        #expect(listing.entries.map(\.size) == [(1 << 62) + 1, (1 << 62) + 1])
+        #expect(listing.totalSize == .max)
+        #expect(FileTree.build(listing).first?.size == .max)
+    }
 }

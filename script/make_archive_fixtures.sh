@@ -33,6 +33,39 @@ find "$work/tree" -exec touch -t 202601021530 {} +
 cp "$work"/tree.zip "$work"/encrypted.zip "$work"/tree.tar "$work"/tree.tar.gz \
    "$work"/tree.tar.bz2 "$work"/tree.tar.xz "$work"/hello.txt.gz "$out/"
 
+# Hostile archives, a few KB each: a .tar.bz2 whose first entry is 16 GiB of zeros (64 concatenated
+# bzip2 streams of 256 MiB) with README.txt behind it, and a ZIP whose two entries each claim
+# 2^62 + 1 bytes in their zip64 fields, more than a plain Int64 sum can hold.
+head -c 268435456 /dev/zero | bzip2 -9 > "$work/zeros.bz2"
+python3 -I - "$work/zeros.bz2" "$out" <<'EOF'
+import bz2, io, struct, sys, tarfile, zipfile
+
+zeros, out = open(sys.argv[1], "rb").read(), sys.argv[2]
+
+def header(name, size):
+    info = tarfile.TarInfo(name)
+    info.size = size
+    return info.tobuf(format=tarfile.PAX_FORMAT)
+
+with open(f"{out}/bomb.tar.bz2", "wb") as f:
+    f.write(bz2.compress(header("zeros.bin", 64 * 268435456)))
+    f.write(zeros * 64)
+    f.write(bz2.compress(header("README.txt", 3) + b"hi\n".ljust(512, b"\0") + bytes(1024)))
+
+buffer = io.BytesIO()
+with zipfile.ZipFile(buffer, "w") as archive:
+    for name in ("d/a.txt", "d/b.txt"):
+        with archive.open(zipfile.ZipInfo(name), "w", force_zip64=True) as f:
+            f.write(b"x")
+data = bytearray(buffer.getvalue())
+# Each local header has a zip64 extra field (id 1, 16 bytes): the uncompressed size comes first.
+at = 0
+while (at := data.find(b"\x01\x00\x10\x00", at)) >= 0:
+    data[at + 4:at + 12] = struct.pack("<Q", (1 << 62) + 1)
+    at += 4
+open(f"{out}/huge-sizes.zip", "wb").write(data)
+EOF
+
 base="https://raw.githubusercontent.com/libarchive/libarchive/$LIBARCHIVE_COMMIT/libarchive/test"
 for name in \
     test_read_format_rar.rar \

@@ -91,6 +91,14 @@ struct TorrentTests {
         #expect(torrent.infoHashV2?.count == 64)
     }
 
+    @Test("File lengths whose sum overflows Int64 add up to the maximum instead of crashing")
+    func hugeLengths() throws {
+        let file = "d6:lengthi4611686018427387905e4:pathl1:aee"
+        let torrent = try Torrent(data: Data("d4:infod5:filesl\(file)\(file)e4:name1:t12:piece lengthi16384eee".utf8))
+        #expect(torrent.totalLength == .max)
+        #expect(torrent.pieceCount == Int(Int64.max / 16384) + 1)
+    }
+
     @Test("Files that are not torrents are rejected")
     func notTorrent() {
         #expect(throws: (any Error).self) { try Torrent(data: Data("d3:fooi1ee".utf8)) }

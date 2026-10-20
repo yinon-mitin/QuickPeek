@@ -145,11 +145,19 @@ public enum FileTree {
             }
             return FileTreeNode(
                 id: path, name: name, isDirectory: true,
-                size: frozen.reduce(Int64(0)) { $0 + ($1.size ?? 0) },
+                size: frozen.reduce(Int64(0)) { $0.addingClamped($1.size ?? 0) },
                 modified: modified, isEncrypted: isEncrypted, linkTarget: nil,
                 fileCount: frozen.reduce(0) { $0 + $1.fileCount },
                 children: frozen
             )
         }
+    }
+}
+
+extension Int64 {
+    /// Sizes come from file headers, which can claim anything: their sum stops at the limit instead of trapping.
+    func addingClamped(_ other: Int64) -> Int64 {
+        let (sum, overflow) = addingReportingOverflow(other)
+        return overflow ? (other > 0 ? .max : .min) : sum
     }
 }

@@ -10,18 +10,20 @@
 </p>
 
 <p align="center"><strong>One small native app that fills the gaps in Quick Look.</strong><br>
-Press Space on MKV videos, archives, source code, Markdown, Android and iOS apps, torrents and more.<br>
-Free and open source, under 4 MB, no ffmpeg, no web views.</p>
+Press Space on MKV videos, archives, folders, SQLite databases, source code, Markdown, Android and iOS apps, torrents and more.<br>
+Free and open source, a 3 MB download, no ffmpeg, no web views.</p>
 
 ## Screenshots
 
 <p align="center">
   <img src="docs/screenshots/video.jpg" width="49%" alt="An MKV video playing in Quick Look">
+  <img src="docs/screenshots/info.png" width="49%" alt="File details: container, codecs, resolution and bitrate">
   <img src="docs/screenshots/code.png" width="49%" alt="Swift source code with syntax highlighting in dark mode">
   <img src="docs/screenshots/markdown.png" width="49%" alt="A Markdown document with a table, task list and code block">
-  <img src="docs/screenshots/archive.png" width="49%" alt="The contents of a ZIP archive">
+  <img src="docs/screenshots/archive.png" width="49%" alt="A ZIP archive's file tree, with its README rendered next to it">
+  <img src="docs/screenshots/sqlite.png" width="49%" alt="An SQLite database: tables with row counts and the rows of the selected one">
   <img src="docs/screenshots/apk.png" width="49%" alt="An Android app package with its icon and permissions">
-  <img src="docs/screenshots/info.png" width="49%" alt="File details: container, codecs, resolution and bitrate">
+  <img src="docs/screenshots/torrent.png" width="49%" alt="A torrent's files, info hash and trackers, with a button that copies the magnet link">
 </p>
 
 ## What it previews
@@ -31,7 +33,7 @@ Free and open source, under 4 MB, no ffmpeg, no web views.</p>
 | **Video** — MKV, WebM, MKA | A native player with hardware decoding (H.264, HEVC, VP9, AV1\*; AAC, Opus, FLAC, AC-3, E-AC-3, MP3) and Finder thumbnails |
 | **Archives** — ZIP, RAR, 7z, TAR (gz, bz2, xz), ISO, CPIO, XAR, CAB, LHA | The file tree with sizes and dates, folders already open; select a file to see it (text, code, Markdown, images, PDF), without extracting anything |
 | **Folders** | Everything inside, as a tree with sizes and dates |
-| **SQLite databases** — `.sqlite`, `.db` | Tables and views with row counts, and the first rows of each; opened read-only |
+| **SQLite databases** — `.sqlite`, `.sqlite3`, `.db`, `.db3` | Tables and views with row counts, and the first rows of each; opened read-only |
 | **Code and config** — YAML, JSON, TOML, Swift, Python, Go, Rust, Shell, Dockerfile, ~50 more | Syntax highlighting in light and dark mode |
 | **Markdown** | Rendered text with tables, task lists and highlighted code blocks |
 | **Tables** — CSV, TSV | A real table; the delimiter is detected |
